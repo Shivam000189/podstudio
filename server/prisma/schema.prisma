@@ -20,7 +20,13 @@ model User {
   password  String
   name  String
   avatar_url    String? 
+  timezone   String
+  email_verfied_at   DateTime @default(now()) 
   created_at    DateTime @default(now())
+  update_at    DateTime @default(now())
+  deleted_at   DateTime? 
 }
+
+
 
 
