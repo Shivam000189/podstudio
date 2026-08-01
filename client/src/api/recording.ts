@@ -14,9 +14,7 @@ export const uploadRecording = async (
   if (roomId) formData.append("roomId", roomId);
 
   const response = await API.post("/recordings", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
+    headers: { "Content-Type": "multipart/form-data" },
     onUploadProgress: (progressEvent) => {
       if (progressEvent.total && onProgress) {
         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -25,5 +23,15 @@ export const uploadRecording = async (
     },
   });
 
+  return response.data;
+};
+
+export const getRecordings = async () => {
+  const response = await API.get("/recordings");
+  return response.data.data;
+};
+
+export const deleteRecording = async (id: string) => {
+  const response = await API.delete(`/recordings/${id}`);
   return response.data;
 };
