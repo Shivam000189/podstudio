@@ -19,7 +19,7 @@ router.post('/rooms/create', (req, res) => {
         participants: []
     };
 
-    temporaryRooms.set(roomId, room);  // ✅ fixed
+    temporaryRooms.set(roomId, room); 
 
     res.status(201).json({
         GenerateID: roomId

@@ -18,8 +18,8 @@ export const registerUser = async (
 
   const user = await prisma.user.create({
     data: {
-      name,
       email,
+      name,
       password: hashedPassword,
     },
   });
@@ -53,7 +53,7 @@ export const getMe = async (userId:string) => {
       id:true,
       name:true,
       email:true,
-      createdAt:true
+      created_at:true
     },
   });
 };

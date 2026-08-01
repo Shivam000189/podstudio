@@ -71,13 +71,20 @@ export const me = async (req:AuthRequest, res:Response) => {
         _id:user?.id,
         name:user?.name,
         email:user?.email,
-        createdAt: user?.createdAt,
+        createdAt: user?.created_at,
       },
     });
   }
-  catch(err:any){
-    res.status(500).json({success:false});
-  }
+  catch (err: any) {
+  console.error(err);
+
+  res.status(500).json({
+    success: false,
+    message: err.message,
+    stack: err.stack,
+  });
+}
+
 }
 
 // Logout

@@ -9,7 +9,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 
@@ -20,13 +19,33 @@ model User {
   password  String
   name  String
   avatar_url    String? 
-  timezone   String
+  // timezone   String
   email_verfied_at   DateTime @default(now()) 
   created_at    DateTime @default(now())
   update_at    DateTime @default(now())
   deleted_at   DateTime? 
+
+  recordings Recording[] 
 }
 
+
+
+model Recording {
+  id        String   @id @default(uuid())
+  title     String   @default("Untitled Meeting")
+  videoUrl  String
+  duration  Int      @default(0) // in seconds
+  fileSize  Int      @default(0) // in bytes
+  thumbnail String?  // optional, for later
+  roomId    String?  // optional, track which room
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+}
 
 
 

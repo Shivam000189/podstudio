@@ -7,10 +7,11 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import authRoutes from './routes/auth.routes';
 import roomRoutes from './routes/room.routes';
+import recordingRoutes from './routes/recording.routes';
 
 const app = express();
 const httpServer = createServer(app);  // wrap express in HTTP server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(express.json());
@@ -37,6 +38,9 @@ app.use(cors((req, callback) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', roomRoutes);
+
+app.use('/api/recordings', recordingRoutes);
+app.use('/uploads', express.static('uploads'));
 
 // Health Check
 app.get('/', (req: Request, res: Response) => {
