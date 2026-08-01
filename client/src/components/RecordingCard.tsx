@@ -13,6 +13,7 @@ type Props = {
   recording: Recording;
   onDelete: (id: string) => void;
   onPlay: (recording: Recording) => void;
+  onRename: (id: string, title: string) => Promise<void>;
 };
 
 function formatDuration(seconds: number) {
@@ -37,8 +38,11 @@ function formatDate(dateString: string) {
   return date.toLocaleDateString();
 }
 
-export function RecordingCard({ recording, onDelete, onPlay }: Props) {
+export function RecordingCard({ recording, onDelete, onPlay, onRename }: Props) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(recording.title);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this recording?")) return;
@@ -47,9 +51,25 @@ export function RecordingCard({ recording, onDelete, onPlay }: Props) {
     setIsDeleting(false);
   };
 
+  const handleSave = async () => {
+    if (!editTitle.trim()) return;
+    setIsSaving(true);
+    await onRename(recording.id, editTitle.trim());
+    setIsSaving(false);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSave();
+    if (e.key === "Escape") {
+      setEditTitle(recording.title);
+      setIsEditing(false);
+    }
+  };
+
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-gray-600 transition-colors">
-      {/* Thumbnail / Preview */}
+      {/* Thumbnail */}
       <div 
         className="aspect-video bg-gray-900 flex items-center justify-center cursor-pointer group relative"
         onClick={() => onPlay(recording)}
@@ -64,9 +84,44 @@ export function RecordingCard({ recording, onDelete, onPlay }: Props) {
 
       {/* Info */}
       <div className="p-4">
-        <h3 className="font-semibold text-white truncate" title={recording.title}>
-          {recording.title}
-        </h3>
+        {/* Title - editable */}
+        {isEditing ? (
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+            >
+              {isSaving ? "..." : "✓"}
+            </button>
+            <button
+              onClick={() => {
+                setEditTitle(recording.title);
+                setIsEditing(false);
+              }}
+              className="bg-gray-600 hover:bg-gray-500 text-white px-3 py-1 rounded text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <h3 
+            className="font-semibold text-white truncate cursor-pointer hover:text-blue-400 transition-colors"
+            title="Click to rename"
+            onClick={() => setIsEditing(true)}
+          >
+            {recording.title}
+          </h3>
+        )}
+
         <div className="flex justify-between items-center mt-2 text-sm text-gray-400">
           <span>{formatDate(recording.createdAt)}</span>
           <span>{formatFileSize(recording.fileSize)}</span>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { createRecording, getRecordings, deleteRecording } from "../controllers/recording.controller";
+import { createRecording, getRecordings, deleteRecording, updateRecording } from "../controllers/recording.controller";
 
 const router = Router();
 
@@ -24,6 +24,7 @@ const upload = multer({
 // Routes
 router.post("/", authMiddleware, upload.single("video"), createRecording);
 router.get("/", authMiddleware, getRecordings);
+router.patch("/:id", authMiddleware, updateRecording);
 router.delete("/:id", authMiddleware, deleteRecording);
 
 export default router;

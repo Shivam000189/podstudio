@@ -256,7 +256,7 @@ export function useRecording(
       );
 
 
-      // Store blob for upload
+      
       recordedBlob.current = blob;
 
 

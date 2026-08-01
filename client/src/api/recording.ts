@@ -31,7 +31,13 @@ export const getRecordings = async () => {
   return response.data.data;
 };
 
+export const updateRecording = async (id: string, title: string) => {
+  const response = await API.patch(`/recordings/${id}`, { title });
+  return response.data;
+};
+
 export const deleteRecording = async (id: string) => {
   const response = await API.delete(`/recordings/${id}`);
   return response.data;
 };
+

@@ -97,3 +97,44 @@ export const deleteRecording = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+// PATCH /api/recordings/:id - Rename recording
+export const updateRecording = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const id  = req.params.id as string;
+    const { title } = req.body;
+
+    if (!title || title.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Title is required",
+      });
+    }
+
+    const recording = await prisma.recording.findFirst({
+      where: { id, userId },
+    });
+
+    if (!recording) {
+      return res.status(404).json({
+        success: false,
+        message: "Recording not found",
+      });
+    }
+
+    const updated = await prisma.recording.update({
+      where: { id },
+      data: { title: title.trim() },
+    });
+
+    res.json({
+      success: true,
+      message: "Recording renamed",
+      data: updated,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
