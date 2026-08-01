@@ -67,10 +67,10 @@ export const getRecordings = async (req: AuthRequest, res: Response) => {
 export const deleteRecording = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const { id } = req.params;
+    const  id  = req.params.id as string;
 
     const recording = await prisma.recording.findFirst({
-      where: { id, userId },
+      where: { id , userId },
     });
 
     if (!recording) {
