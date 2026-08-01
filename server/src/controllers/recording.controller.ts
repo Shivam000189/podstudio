@@ -1,8 +1,7 @@
 import { Response } from "express";
 import { prisma } from "../config/prisma";
 import { AuthRequest } from "../middleware/auth.middleware";
-import fs from "fs";
-import path from "path";
+import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinary.service";
 
 // POST /api/recordings - Upload and save recording
 export const createRecording = async (req: AuthRequest, res: Response) => {
@@ -18,13 +17,13 @@ export const createRecording = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Local file URL (will be replaced by Cloud URL in Step 4)
-    const videoUrl = `/uploads/${file.filename}`;
+    // Upload to Cloudinary
+    const { url, publicId } = await uploadToCloudinary(file.path);
 
     const recording = await prisma.recording.create({
       data: {
         title: title || "Untitled Meeting",
-        videoUrl,
+        videoUrl: url,           // Cloudinary URL
         duration: parseInt(duration) || 0,
         fileSize: file.size,
         roomId: roomId || null,
@@ -34,7 +33,7 @@ export const createRecording = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({
       success: true,
-      message: "Recording saved",
+      message: "Recording uploaded to cloud",
       data: recording,
     });
   } catch (error: any) {
@@ -43,7 +42,7 @@ export const createRecording = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// GET /api/recordings - List user's recordings
+// GET /api/recordings - List user's recordings (same as before)
 export const getRecordings = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
@@ -70,7 +69,7 @@ export const deleteRecording = async (req: AuthRequest, res: Response) => {
     const  id  = req.params.id as string;
 
     const recording = await prisma.recording.findFirst({
-      where: { id , userId },
+      where: { id, userId },
     });
 
     if (!recording) {
@@ -80,19 +79,20 @@ export const deleteRecording = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Delete local file if it exists
-    if (recording.videoUrl.startsWith('/uploads/')) {
-      const filePath = path.join(process.cwd(), recording.videoUrl);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
+    // Extract public_id from Cloudinary URL for deletion
+    // URL format: https://res.cloudinary.com/.../riverside-recordings/recording-xxx.webm
+    const urlParts = recording.videoUrl.split('/');
+    const filenameWithExt = urlParts[urlParts.length - 1];
+    const folder = urlParts[urlParts.length - 2];
+    const publicId = `${folder}/${filenameWithExt.split('.')[0]}`;
+
+    await deleteFromCloudinary(publicId);
 
     await prisma.recording.delete({
       where: { id },
     });
 
-    res.json({ success: true, message: "Recording deleted" });
+    res.json({ success: true, message: "Recording deleted from cloud" });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

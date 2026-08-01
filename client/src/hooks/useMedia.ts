@@ -4,6 +4,8 @@ export function useMedia() {
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+    const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
@@ -29,29 +31,45 @@ export function useMedia() {
 
         getMedia();
 
-        // Cleanup: stop all tracks when component unmounts
         return () => {
             localStream?.getTracks().forEach((track) => track.stop());
         };
     }, []);
-
-    const toggleVideo = useCallback(() => {
-        if (stream) {
-            const videoTrack = stream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-            }
-        }
-    }, [stream]);
 
     const toggleAudio = useCallback(() => {
         if (stream) {
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
+                setIsAudioEnabled(audioTrack.enabled);
             }
         }
     }, [stream]);
 
-    return { stream, videoRef, error, isLoading, toggleVideo, toggleAudio };
+    const toggleVideo = useCallback(() => {
+        if (stream) {
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                setIsVideoEnabled(videoTrack.enabled);
+            }
+        }
+    }, [stream]);
+
+    const stopMedia = useCallback(() => {
+        stream?.getTracks().forEach((track) => track.stop());
+        setStream(null);
+    }, [stream]);
+
+    return { 
+        stream, 
+        videoRef, 
+        error, 
+        isLoading, 
+        isAudioEnabled, 
+        isVideoEnabled,
+        toggleAudio, 
+        toggleVideo,
+        stopMedia
+    };
 }

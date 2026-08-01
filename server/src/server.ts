@@ -40,7 +40,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', roomRoutes);
 
 app.use('/api/recordings', recordingRoutes);
-app.use('/uploads', express.static('uploads'));
+// app.use('/uploads', express.static('uploads'));
 
 // Health Check
 app.get('/', (req: Request, res: Response) => {
