@@ -17,13 +17,14 @@ export const register = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       message: "User registered successfully",
-      data: {
+      token,
+      expiresIn: "24h",
+      user: {
         _id: user.id,
         name: user.name,
         email: user.email,
-        token,
-    },
-  });
+      },
+    });
   } catch (error: any) {
     res.status(error.statusCode || error.status || 400).json({
       success: false,

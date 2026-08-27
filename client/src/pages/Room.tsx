@@ -8,6 +8,7 @@ import { useWebRTC } from "../hooks/useWebRTC";
 import { useRecording } from "../hooks/useRecording";
 import { VideoPlayer } from "../components/VideoPlayer";
 import { uploadRecording } from "../api/recording";
+import { useAuth } from "../hooks/useAuth";
 
 type RoomData = {
     roomId: string;
@@ -28,6 +29,7 @@ export function Rooms() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [uploadSuccess, setUploadSuccess] = useState(false);
+    const { user } = useAuth();
     
     const { 
         stream, 
@@ -128,26 +130,40 @@ export function Rooms() {
         <div className="bg-gray-900 h-screen text-white flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                <div>
-                    <h1 className="font-bold">Room: {room?.roomId}</h1>
-                    <p className="text-xs text-gray-400">
-                        {isConnected ? '🟢 Connected' : '🔴 Disconnected'} | 
-                        {connectionState === 'connected' ? ' 🎥 Live' : ' ⏳ ' + connectionState}
-                    </p>
+                    <div>
+                        <h1 className="font-bold">Room: {room?.roomId}</h1>
+                        <p className="text-xs text-gray-400">
+                            {isConnected ? '🟢 Connected' : '🔴 Disconnected'} | 
+                            {connectionState === 'connected' ? ' 🎥 Live' : ' ⏳ ' + connectionState}
+                        </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                        {user && (
+                            <span className="text-sm text-gray-400 hidden sm:inline">
+                                {user.name}
+                            </span>
+                        )}
+                        {recordingState === 'recording' && (
+                            <div className="flex items-center gap-2 bg-red-900/50 px-3 py-1 rounded-full border border-red-500">
+                                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                <span className="text-sm font-mono text-red-400">{elapsedTime}</span>
+                            </div>
+                        )}
+                        <button 
+                            onClick={() => navigate('/dashboard')}
+                            className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm"
+                        >
+                            Dashboard
+                        </button>
+                        <button 
+                            onClick={handleLeave}
+                            className="bg-red-500 px-4 py-1 rounded text-sm hover:bg-red-600"
+                        >
+                            Leave
+                        </button>
+                    </div>
                 </div>
-                
-                <div className="flex items-center gap-3">
-                    {recordingState === 'recording' && (
-                        <div className="flex items-center gap-2 bg-red-900/50 px-3 py-1 rounded-full border border-red-500">
-                            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                            <span className="text-sm font-mono text-red-400">{elapsedTime}</span>
-                        </div>
-                    )}
-                    <button onClick={handleLeave} className="bg-red-500 px-4 py-1 rounded text-sm hover:bg-red-600">
-                        Leave
-                    </button>
-                </div>
-            </div>
 
             {/* Video Grid */}
             <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-4">

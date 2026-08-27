@@ -42,12 +42,12 @@ app.use('/api', roomRoutes);
 app.use('/api/recordings', recordingRoutes);
 // app.use('/uploads', express.static('uploads'));
 
-// Health Check
+
 app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'Express + TypeScript + Socket.io server running!' });
 });
 
-// Socket.io Setup
+
 const io = new Server(httpServer, {
   cors: {
     origin: localOrigins,
@@ -55,13 +55,13 @@ const io = new Server(httpServer, {
   },
 });
 
-// Track who's in which room
+
 const roomUsers = new Map<string, Set<string>>(); // roomId -> Set of socketIds
 
 io.on('connection', (socket) => {
   console.log('🔌 New client connected:', socket.id);
 
-  // When someone joins a room
+  // room Join
   socket.on('join-room', (roomId: string) => {
     socket.join(roomId);
     

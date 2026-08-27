@@ -1,85 +1,10 @@
-// import { useState } from "react";
-// import { Link, useNavigate } from "react-router-dom";
-// import API from "../api/axios";
-
-// export default function SignIn() {
-//     const navigate = useNavigate();
-//     const [formData, setFormData] = useState({
-//         email: "",
-//         password: "",
-//     });
-//     const [isSubmitting, setIsSubmitting] = useState(false);
-
-//     const handleSubmit = async (e) => {
-//         e.preventDefault();
-//         setIsSubmitting(true);
-
-//         try {
-//             const response = await API.post("/auth/login", formData);
-//             localStorage.setItem("token", response.data.token);
-//             localStorage.setItem("user", JSON.stringify(response.data.user));
-//             alert("Login successful!");
-//             navigate("/dashboard");
-//         } catch (error) {
-//             console.error("Login error:", error);
-//             alert(error.response?.data?.message || "Login failed. Please check your credentials and try again.");
-//         } finally {
-//             setIsSubmitting(false);
-//         }
-//     };
-
-//     return (
-//         <div className="flex h-screen w-screen items-center justify-center bg-gray-400">
-//             <div className="w-96 space-y-4 rounded-md bg-white p-8 shadow-md">
-//                 <h1 className="text-center text-3xl font-bold">Login Page</h1>
-//                 <form onSubmit={handleSubmit} className="flex flex-col justify-center">
-//                     <label htmlFor="email" className="text-lg font-semibold">Email</label>
-//                     <input
-//                         id="email"
-//                         type="email"
-//                         placeholder="Email"
-//                         value={formData.email}
-//                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-//                         className="m-2 rounded-md border-2 border-gray-300 p-2"
-//                         required
-//                     />
-
-//                     <label htmlFor="password" className="text-lg font-semibold">Password</label>
-//                     <input
-//                         id="password"
-//                         type="password"
-//                         placeholder="Password"
-//                         value={formData.password}
-//                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-//                         className="m-2 rounded-md border-2 border-gray-300 p-2"
-//                         required
-//                     />
-
-//                     <button
-//                         type="submit"
-//                         disabled={isSubmitting}
-//                         className="m-2 cursor-pointer rounded-md bg-black p-2 text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-70"
-//                     >
-//                         {isSubmitting ? "Logging in..." : "Login"}
-//                     </button>
-//                 </form>
-
-//                 <p className="text-center">
-//                     Don&apos;t have an account?{" "}
-//                     <Link to="/signup" className="text-blue-500 hover:underline">
-//                         Signup
-//                     </Link>
-//                 </p>
-//             </div>
-//         </div>
-//     );
-// }
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { FormEvent, ChangeEvent } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import "../App.css";
+import { useEffect } from "react";
+import { useAuth } from "../hooks/useAuth";
 
 import API from "../api/axios";
 
@@ -90,11 +15,16 @@ interface LoginForm {
 
 interface LoginResponse {
   token: string;
-  user: unknown;
+  user: {
+    _id: string;
+    name: string;
+    email: string;
+  };
 }
 
 export function Login() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const errorMessage = (error: any) =>
     error.response?.data?.message ||
@@ -106,6 +36,8 @@ export function Login() {
   });
 
   const [error, setError] = useState("");
+  const { isAuthenticated } = useAuth();
+  
 
   const loginMutation = useMutation({
     mutationFn: async (form: LoginForm) => {
@@ -114,16 +46,21 @@ export function Login() {
     },
 
     onSuccess: (data) => {
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      navigate("/dashboard");
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      queryClient.setQueryData(['auth', 'me'], data.user);
+      navigate("/home");
     },
 
     onError: (err: any) => {
       setError(errorMessage(err));
     },
   });
+  useEffect(() => {
+        if (isAuthenticated) {
+            navigate("/home");
+        }
+    }, [isAuthenticated, navigate]);
 
   const handleChange =
     (field: keyof LoginForm) =>
@@ -145,15 +82,14 @@ export function Login() {
     <div className="auth-page">
       <div className="auth-side">
         <Link to="/" className="brand">
-          <span>H</span> HeroCRM
+          <span>P</span> Podstudio
         </Link>
 
         <div>
-          <p className="eyebrow">A better way to follow up</p>
-          <h1>Turn every conversation into a customer.</h1>
+          <p className="eyebrow">Create with confidence</p>
+          <h1>Make every conversation worth sharing.</h1>
           <p>
-            Keep your team aligned and your pipeline moving from the very first
-            hello.
+            Record studio-quality video with your team, wherever they are.
           </p>
         </div>
       </div>
@@ -162,7 +98,7 @@ export function Login() {
         <div>
           <p className="eyebrow">WELCOME BACK</p>
           <h2>Sign in to your workspace</h2>
-          <p>Use your admin or member account to continue.</p>
+          <p>Sign in to continue creating with Podstudio.</p>
         </div>
 
         {error && <div className="alert error">{error}</div>}

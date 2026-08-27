@@ -77,7 +77,7 @@ export default function Signup() {
           })
         );
 
-        navigate("/dashboard");
+        navigate("/home");
         return;
       }
 
@@ -89,7 +89,7 @@ export default function Signup() {
 
       setError(
         error.response?.data?.message ??
-          "Signup failed. Please try again."
+          "Sign-up failed. Please try again."
       );
     },
   });
@@ -120,25 +120,25 @@ export default function Signup() {
     <main className="auth-page">
       <div className="auth-side">
         <Link to="/" className="brand">
-          <span>H</span> HeroCRM
+          <span>R</span> RIVERSIDE
         </Link>
 
         <div>
-          <p className="eyebrow">JOIN YOUR WORKSPACE</p>
-          <h1>Keep every new lead moving forward.</h1>
+          <p className="eyebrow">START CREATING</p>
+          <h1>Bring your best conversations to life.</h1>
           <p>
-            Capture, qualify, and follow up from one focused CRM dashboard.
+            Record, edit, and share polished content from one focused studio.
           </p>
         </div>
       </div>
 
       <section className="auth-card">
-        <p className="eyebrow">Create account</p>
+        <p className="eyebrow">CREATE YOUR ACCOUNT</p>
 
-        <h2>Start managing leads</h2>
+        <h2>Start creating today</h2>
 
         <p className="muted">
-          Add your CRM account, then continue straight to the dashboard.
+          Set up your Riverside account and start your first recording.
         </p>
 
 
@@ -160,7 +160,7 @@ export default function Signup() {
             <input
               id="name"
               type="text"
-              placeholder="Your name"
+              placeholder="Your full name"
               value={formData.name}
               onChange={handleChange("name")}
               required
@@ -174,7 +174,7 @@ export default function Signup() {
             <input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder="you@company.com"
               value={formData.email}
               onChange={handleChange("email")}
               required
@@ -188,7 +188,7 @@ export default function Signup() {
             <input
               id="password"
               type="password"
-              placeholder="Minimum 6 characters"
+              placeholder="At least 6 characters"
               minLength={6}
               value={formData.password}
               onChange={handleChange("password")}
@@ -213,7 +213,7 @@ export default function Signup() {
         <p className="auth-foot">
           Already have an account?{" "}
           <Link to="/login">
-            Login
+            Sign in
           </Link>
         </p>
 
