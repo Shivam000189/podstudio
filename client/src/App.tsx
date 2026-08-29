@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
 import { Login } from './pages/Login';
 import Signup from './pages/Signup';
 import Landing from './pages/landing';
@@ -19,6 +20,7 @@ function App() {
           <Route path='/' element={<Landing />} />
           <Route path='/login' element={<Login />} />
           <Route path='/register' element={<Signup />} />
+          <Route path='/sso-callback' element={<AuthenticateWithRedirectCallback signUpForceRedirectUrl="/home" signInForceRedirectUrl="/home" />} />
 
           {/* Protected Routes */}
           <Route 

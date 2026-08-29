@@ -6,8 +6,22 @@ const API = axios.create({
 });
 
 API.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
+  async (config) => {
+    let token = localStorage.getItem("token");
+    
+    // Check if Clerk is loaded globally and provide active session token
+    if (typeof window !== "undefined" && (window as any).Clerk?.session) {
+      try {
+        const clerkToken = await (window as any).Clerk.session.getToken();
+        if (clerkToken) {
+          token = clerkToken;
+          localStorage.setItem("token", clerkToken);
+        }
+      } catch {
+        // Fallback to cached token
+      }
+    }
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

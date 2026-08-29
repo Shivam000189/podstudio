@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
+import { Play, Download, Trash2, Edit3, Check } from "lucide-react";
+import "../App.css";
 
 type Recording = {
   id: string;
@@ -34,15 +37,14 @@ function formatDate(dateString: string) {
   
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString();
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export function RecordingCard({ recording, onDelete, onPlay, onRename }: Props) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(recording.title);
-  const [isSaving, setIsSaving] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this recording?")) return;
@@ -52,10 +54,12 @@ export function RecordingCard({ recording, onDelete, onPlay, onRename }: Props) 
   };
 
   const handleSave = async () => {
-    if (!editTitle.trim()) return;
-    setIsSaving(true);
+    if (!editTitle.trim()) {
+      setEditTitle(recording.title);
+      setIsEditing(false);
+      return;
+    }
     await onRename(recording.id, editTitle.trim());
-    setIsSaving(false);
     setIsEditing(false);
   };
 
@@ -68,89 +72,88 @@ export function RecordingCard({ recording, onDelete, onPlay, onRename }: Props) 
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-gray-600 transition-colors">
-      {/* Thumbnail */}
+    <motion.div 
+      className="recording-card"
+      whileHover={{ y: -3, transition: { duration: 0.15 } }}
+    >
       <div 
-        className="aspect-video bg-gray-900 flex items-center justify-center cursor-pointer group relative"
+        className="recording-card-thumbnail"
         onClick={() => onPlay(recording)}
       >
-        <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center group-hover:bg-blue-600 transition-colors">
-          <span className="text-2xl">▶</span>
+        <div className="play-button-overlay">
+          <Play className="w-8 h-8 fill-current text-brand" />
         </div>
-        <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded text-xs font-mono">
-          {formatDuration(recording.duration)}
-        </div>
+        <div className="duration-badge mono">{formatDuration(recording.duration)}</div>
       </div>
 
-      {/* Info */}
-      <div className="p-4">
-        {/* Title - editable */}
+      <div className="recording-card-body">
         {isEditing ? (
-          <div className="flex gap-2 mb-2">
+          <div className="edit-mode">
             <input
               type="text"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               onKeyDown={handleKeyDown}
+              onBlur={handleSave}
               autoFocus
-              className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="edit-input"
+              maxLength={60}
             />
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
-            >
-              {isSaving ? "..." : "✓"}
-            </button>
-            <button
-              onClick={() => {
-                setEditTitle(recording.title);
-                setIsEditing(false);
-              }}
-              className="bg-gray-600 hover:bg-gray-500 text-white px-3 py-1 rounded text-sm"
-            >
-              ✕
+            <button type="button" onClick={handleSave} className="save-btn" title="Save">
+              <Check className="w-3.5 h-3.5 text-brand" />
             </button>
           </div>
         ) : (
-          <h3 
-            className="font-semibold text-white truncate cursor-pointer hover:text-blue-400 transition-colors"
-            title="Click to rename"
-            onClick={() => setIsEditing(true)}
-          >
-            {recording.title}
-          </h3>
+          <div className="title-row-interactive">
+            <h3 
+              className="recording-card-title"
+              onClick={() => onPlay(recording)}
+            >
+              {recording.title}
+            </h3>
+            <button 
+              type="button" 
+              className="rename-trigger-btn"
+              onClick={() => setIsEditing(true)}
+              title="Rename title"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
 
-        <div className="flex justify-between items-center mt-2 text-sm text-gray-400">
+        <div className="recording-card-meta mono">
           <span>{formatDate(recording.createdAt)}</span>
+          <span>•</span>
           <span>{formatFileSize(recording.fileSize)}</span>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-2 mt-3">
-          <button
+        <div className="recording-card-actions">
+          <button 
+            className="card-action-btn" 
             onClick={() => onPlay(recording)}
-            className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded text-sm font-medium"
+            title="Play recording"
           >
-            Play
+            <Play className="w-4 h-4 fill-current" />
           </button>
-          <a
-            href={recording.videoUrl}
-            download
-            className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-1.5 rounded text-sm font-medium text-center"
+          <a 
+            href={recording.videoUrl} 
+            download={`${recording.title}.webm`}
+            className="card-action-btn"
+            title="Download track"
           >
-            Download
+            <Download className="w-4 h-4" />
           </a>
-          <button
+          <button 
+            className="card-action-btn delete-btn"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="bg-red-900/50 hover:bg-red-900 text-red-400 px-3 py-1.5 rounded text-sm disabled:opacity-50"
+            title="Delete from cloud"
           >
-            {isDeleting ? "..." : "🗑"}
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

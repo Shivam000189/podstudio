@@ -5,6 +5,7 @@ import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import { clerkMiddleware } from "@clerk/express";
 import authRoutes from './routes/auth.routes';
 import roomRoutes from './routes/room.routes';
 import recordingRoutes from './routes/recording.routes';
@@ -15,6 +16,11 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(express.json());
+
+// Attach Clerk Middleware if configured
+if (process.env.CLERK_SECRET_KEY || process.env.CLERK_PUBLISHABLE_KEY) {
+  app.use(clerkMiddleware());
+}
 
 const localOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const allowedOrigins = (process.env.CLIENT_URL || "")

@@ -14,16 +14,17 @@ datasource db {
 
 
 model User {
-  id    String @id @default(uuid())
-  email   String @unique
-  password  String
-  name  String
-  avatar_url    String? 
-  // timezone   String
-  email_verfied_at   DateTime @default(now()) 
-  created_at    DateTime @default(now())
-  update_at    DateTime @default(now())
-  deleted_at   DateTime? 
+  id               String      @id @default(uuid())
+  clerk_id         String?     @unique
+  email            String      @unique
+  password         String?
+  name             String
+  avatar_url       String? 
+  // timezone       String
+  email_verfied_at DateTime    @default(now()) 
+  created_at       DateTime    @default(now())
+  update_at        DateTime    @default(now())
+  deleted_at       DateTime? 
 
   recordings Recording[] 
 }

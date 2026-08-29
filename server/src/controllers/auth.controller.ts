@@ -89,10 +89,52 @@ export const me = async (req:AuthRequest, res:Response) => {
 }
 
 // Logout
-
 export const logout = async (_req:Request, res:Response) => {
-      res.json({
-        success: true,
-        message: "Logged out successfully",
-      });
-}
+  res.json({
+    success: true,
+    message: "Logged out successfully",
+  });
+};
+
+// Sync Clerk User with Prisma Database
+export const syncClerkUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const { clerkId, name, email, avatarUrl } = req.body;
+    const userId = clerkId || req.userId;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "Missing user identifier" });
+    }
+
+    const { prisma } = await import("../config/prisma");
+
+    const user = await prisma.user.upsert({
+      where: { id: userId },
+      update: {
+        name: name || undefined,
+        email: email || undefined,
+        avatar_url: avatarUrl || undefined,
+        clerk_id: clerkId || userId,
+      },
+      create: {
+        id: userId,
+        clerk_id: clerkId || userId,
+        name: name || "PodStudio Creator",
+        email: email || `${userId}@clerk.user`,
+        avatar_url: avatarUrl || null,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        _id: user.id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatar_url,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
