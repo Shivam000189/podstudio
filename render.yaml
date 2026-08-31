@@ -4,7 +4,7 @@ services:
     name: podstudio-api
     env: node
     rootDir: server
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npx prisma migrate deploy && npm run build
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
