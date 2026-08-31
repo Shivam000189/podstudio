@@ -40,6 +40,14 @@ function App() {
             } 
           />
           <Route 
+            path='/room/:id' 
+            element={
+              <ProtectedRoute>
+                <Rooms />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path='/dashboard' 
             element={
               <ProtectedRoute>

@@ -14,7 +14,6 @@ import {
   Sliders,
   ChevronDown,
   Star,
-  Radio,
   Film,
   Cpu,
   Copy,

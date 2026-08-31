@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 dotenv.config();
-import { env } from "./config/env";
 import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -11,7 +10,7 @@ import roomRoutes from './routes/room.routes';
 import recordingRoutes from './routes/recording.routes';
 
 const app = express();
-const httpServer = createServer(app);  // wrap express in HTTP server
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 4000;
 
 // Middleware
@@ -22,45 +21,85 @@ if (process.env.CLERK_SECRET_KEY || process.env.CLERK_PUBLISHABLE_KEY) {
   app.use(clerkMiddleware());
 }
 
-const localOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
-const allowedOrigins = (process.env.CLIENT_URL || "")
-  .split(",")
-  .map((origin) => origin.trim())
+const localOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+  "http://localhost:5175",
+  "http://127.0.0.1:5175",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000"
+];
+
+const envOrigins = [
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  process.env.CORS_ORIGINS,
+  process.env.CORS_ORIGIN
+]
+  .filter(Boolean)
+  .flatMap((val) => (val as string).split(","))
+  .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
+const isOriginAllowed = (origin: string | undefined): boolean => {
+  if (!origin) return true; // Allow non-browser requests (Postman, curl, server-to-server)
+  const normalized = origin.replace(/\/$/, "");
+  
+  if (process.env.NODE_ENV !== "production") {
+    if (localOrigins.includes(normalized)) return true;
+  }
+  
+  if (envOrigins.includes(normalized) || envOrigins.includes("*")) {
+    return true;
+  }
+
+  // If no CLIENT_URL configured in production, allow default or emit warning
+  if (envOrigins.length === 0) {
+    return true;
+  }
+
+  return false;
+};
+
+// Express CORS
 app.use(cors((req, callback) => {
   const origin = req.header("Origin");
-  const requestOrigin = `${req.protocol}://${req.get("host")}`;
-  const origins = process.env.NODE_ENV === "production"
-    ? allowedOrigins
-    : [...allowedOrigins, ...localOrigins];
-
-  if (!origin || origin === requestOrigin || origins.includes(origin)) {
+  if (isOriginAllowed(origin)) {
     return callback(null, { origin: true, credentials: true });
   }
-  return callback(new Error("Not allowed by CORS"));
+  return callback(null, { origin: false, credentials: true });
 }));
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', roomRoutes);
-
 app.use('/api/recordings', recordingRoutes);
-// app.use('/uploads', express.static('uploads'));
 
-
-app.get('/', (req: Request, res: Response) => {
-  res.json({ message: 'Express + TypeScript + Socket.io server running!' });
+// Health check endpoints for deployment platforms (Render, Railway, Fly.io, AWS)
+app.get(['/', '/health', '/api/health'], (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'PodStudio Recording API',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
 });
 
-
+// Socket.IO Server Configuration
 const io = new Server(httpServer, {
   cors: {
-    origin: localOrigins,
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   },
+  transports: ['websocket', 'polling'],
 });
-
 
 const roomUsers = new Map<string, Set<string>>(); // roomId -> Set of socketIds
 
@@ -87,7 +126,7 @@ io.on('connection', (socket) => {
     socket.emit('room-users', otherUsers);
   });
 
-  // WebRTC signaling events (we'll use these in Step 4)
+  // WebRTC signaling events
   socket.on('offer', (payload) => {
     socket.to(payload.roomId).emit('offer', payload);
   });
@@ -121,3 +160,15 @@ io.on('connection', (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server listening at http://localhost:${PORT}`);
 });
+
+// Graceful shutdown
+const gracefulShutdown = () => {
+  console.log('Shutting down server gracefully...');
+  httpServer.close(() => {
+    console.log('HTTP server closed.');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
