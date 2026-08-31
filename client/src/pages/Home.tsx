@@ -7,17 +7,16 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import {
   Video,
-  Layers,
   Radio,
   ArrowRight,
   Sparkles,
   LogOut,
   FolderOpen,
-  Home as HomeIcon,
-  CheckCircle2,
   Copy,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  Mic,
+  ChevronRight
 } from "lucide-react";
 import "../App.css";
 
@@ -34,23 +33,28 @@ const fetchRoomId = async (data: CreateRequest): Promise<ResponseData> => {
   return response.data;
 };
 
-const navItems = [
-  { icon: HomeIcon, label: "Studio Hub", path: "/home" },
-  { icon: FolderOpen, label: "Media Library", path: "/dashboard" },
-];
-
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.05 }
+    transition: { staggerChildren: 0.08, delayChildren: 0.05 }
   }
 };
 
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 18 },
+  hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } }
 };
+
+const randomNames = [
+  "tech-talks-live",
+  "founder-stories",
+  "deep-dive-ep",
+  "creator-studio",
+  "weekly-roundup",
+  "design-critique",
+  "science-unfiltered"
+];
 
 export function Home() {
   const navigate = useNavigate();
@@ -89,8 +93,17 @@ export function Home() {
     }
   };
 
+  const handleGenerateRandomName = () => {
+    const randomPick = randomNames[Math.floor(Math.random() * randomNames.length)];
+    const num = Math.floor(Math.random() * 90) + 10;
+    setCustomRoom(`${randomPick}-${num}`);
+  };
+
   const handleCopyQuickLink = () => {
-    const demoUrl = `${window.location.origin}/rooms/${crypto.randomUUID().slice(0, 8)}`;
+    const demoRoom = customRoom.trim() 
+      ? encodeURIComponent(customRoom.trim().toLowerCase().replace(/\s+/g, '-')) 
+      : crypto.randomUUID().slice(0, 8);
+    const demoUrl = `${window.location.origin}/rooms/${demoRoom}`;
     navigator.clipboard.writeText(demoUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
@@ -107,233 +120,222 @@ export function Home() {
   };
 
   return (
-    <div className="home-command-shell">
-      {/* Side Navigation Rail */}
-      <aside className="home-rail">
-        <div className="rail-brand" onClick={() => navigate("/home")}>
-          <span className="brand-icon">R</span>
-          <span className="brand-title">PodStudio</span>
-        </div>
+    <div className="home-studio-root">
+      {/* Background ambient lighting */}
+      <div className="home-ambient-glow" />
 
-        <nav className="rail-nav" aria-label="Primary">
-          {navItems.map(({ icon: Icon, label, path }, index) => (
+      {/* Top Header / Navigation Bar */}
+      <header className="home-top-nav">
+        <div className="home-nav-container">
+          <div className="home-brand" onClick={() => navigate("/home")}>
+            <span className="brand-logo-badge">R</span>
+            <span className="brand-name">PodStudio</span>
+            <span className="brand-version-pill">STUDIO</span>
+          </div>
+
+          <div className="home-nav-center">
             <button
-              key={label}
-              className={`rail-item ${index === 0 ? "active" : ""}`}
               type="button"
-              onClick={() => navigate(path)}
+              className="home-nav-pill active"
+              onClick={() => navigate("/home")}
             >
-              <Icon className="w-4 h-4" />
-              <span>{label}</span>
+              <Radio className="w-3.5 h-3.5" />
+              <span>Studio Hub</span>
             </button>
-          ))}
-        </nav>
+            <button
+              type="button"
+              className="home-nav-pill"
+              onClick={() => navigate("/dashboard")}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>Media Library</span>
+            </button>
+          </div>
 
-        {/* Quick Capabilities */}
-        <div className="rail-caps">
-          <span className="rail-caps-title mono">STUDIO SPECS</span>
-          <div className="cap-item">
-            <CheckCircle2 className="w-3.5 h-3.5 text-brand" />
-            <span>4K Local Master</span>
-          </div>
-          <div className="cap-item">
-            <CheckCircle2 className="w-3.5 h-3.5 text-brand" />
-            <span>48kHz Lossless WAV</span>
-          </div>
-          <div className="cap-item">
-            <CheckCircle2 className="w-3.5 h-3.5 text-brand" />
-            <span>Sub-20ms WebRTC</span>
-          </div>
-        </div>
-
-        <div className="rail-user-zone">
-          {user ? (
-            <div className="user-pill">
-              <div className="user-avatar">{user.name?.charAt(0)?.toUpperCase() || "U"}</div>
-              <div className="user-meta">
-                <strong>{user.name}</strong>
-                <small>{user.email}</small>
+          <div className="home-nav-user">
+            {user ? (
+              <div className="user-profile-menu">
+                <div className="user-profile-badge">
+                  <div className="user-avatar-initial">
+                    {user.name?.charAt(0)?.toUpperCase() || "U"}
+                  </div>
+                  <div className="user-text-info">
+                    <span className="user-name-text">{user.name || "Creator"}</span>
+                    <span className="user-email-text">{user.email}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="logout-ghost-btn"
+                  title="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
-            </div>
-          ) : (
-            <div className="mini-auth-row mono">
-              <Link to="/login" className="mini-link">Sign In</Link>
-              <span>•</span>
-              <Link to="/register" className="mini-link text-brand">Register</Link>
-            </div>
-          )}
-
-          {user && (
-            <button type="button" className="rail-logout" onClick={handleLogout}>
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
-            </button>
-          )}
+            ) : (
+              <div className="auth-guest-links">
+                <Link to="/login" className="guest-login-link">Sign In</Link>
+                <Link to="/register" className="guest-register-btn">Get Started</Link>
+              </div>
+            )}
+          </div>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Viewport */}
-      <main className="home-viewport">
-        <motion.div 
-          className="home-content-container"
+      {/* Main Spacious Content */}
+      <main className="home-main-wrap">
+        <motion.div
+          className="home-inner-bounds"
           initial="hidden"
           animate="visible"
           variants={containerVariants}
         >
-          {/* Top Hero Section */}
-          <motion.div className="home-hero-header" variants={itemVariants}>
-            <div className="hero-badge-pill mono">
-              <Radio className="w-3.5 h-3.5 text-brand" />
-              <span>Broadcast Command Center</span>
+          {/* Hero Intro Header */}
+          <motion.div className="home-hero-center" variants={itemVariants}>
+            <div className="home-badge-glass">
+              <span className="live-indicator-dot" />
+              <span>Local 4K Master Engine Active</span>
             </div>
-            <h1>
-              Studio-Quality Remote Recording, <span className="text-brand">Simplified</span>.
+            
+            <h1 className="home-main-title">
+              Studio-Quality Remote Recording, <br className="hidden sm:inline" />
+              <span className="title-gradient-accent">Made Effortless</span>.
             </h1>
-            <p className="hero-lede">
-              Create an uncompressed local recording studio in seconds. Send one link to guests — zero downloads, zero account setup required.
+            
+            <p className="home-main-subtitle">
+              Capture separate, uncompressed 4K video and lossless 48kHz audio tracks locally on every machine.
+              Zero downloads for guests — invite with a single link.
             </p>
           </motion.div>
 
-          {/* Quick Launch Console & Live Card Grid */}
-          <div className="home-grid-layout">
-            {/* Left Card: Launch Console */}
-            <motion.div className="studio-launcher-card" variants={itemVariants}>
-              <div className="launcher-head">
-                <div className="launcher-icon-box">
+          {/* Primary Studio Command Bar */}
+          <motion.div className="home-launcher-glass-card" variants={itemVariants}>
+            <div className="launcher-card-glow" />
+            
+            <form onSubmit={handleLaunchNamedRoom} className="launcher-form-wrapper">
+              <div className="launcher-input-group">
+                <div className="launcher-input-icon">
                   <Video className="w-5 h-5 text-brand" />
                 </div>
-                <div>
-                  <h3>Launch Instant Studio Room</h3>
-                  <p>Start a recording session or create a custom named room.</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleLaunchNamedRoom} className="home-room-form">
-                <label className="input-label mono">Room Name (Optional)</label>
-                <div className="room-input-row">
-                  <input
-                    type="text"
-                    placeholder="e.g. podcast-ep-14"
-                    value={customRoom}
-                    onChange={(e) => setCustomRoom(e.target.value)}
-                    className="room-name-field"
-                  />
-                  <button 
-                    type="submit" 
-                    className="btn-launch-studio"
-                    disabled={isCreating || createMutation.isPending}
-                  >
-                    {isCreating ? (
-                      <span className="spinner-mini" />
-                    ) : (
-                      <>
-                        <span>Launch Studio</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-
-              <div className="launcher-actions-divider">
-                <span>OR</span>
-              </div>
-
-              <div className="quick-actions-row">
+                <input
+                  type="text"
+                  placeholder="Enter studio room name (e.g. tech-podcast-ep1)..."
+                  value={customRoom}
+                  onChange={(e) => setCustomRoom(e.target.value)}
+                  className="launcher-text-field"
+                  autoFocus
+                />
                 <button
-                  type="button"
-                  onClick={handleCreateInstant}
-                  className="quick-btn-secondary"
+                  type="submit"
+                  className="launcher-primary-cta"
                   disabled={isCreating || createMutation.isPending}
                 >
-                  <Sparkles className="w-4 h-4 text-brand" />
-                  <span>Generate Random Room</span>
+                  {isCreating ? (
+                    <>
+                      <span className="spinner-mini" />
+                      <span>Creating Studio...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Launch Studio</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopyQuickLink}
-                  className="quick-btn-secondary"
-                >
-                  {copiedLink ? <Check className="w-4 h-4 text-brand" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedLink ? "Link Copied!" : "Copy Quick Invite"}</span>
-                </button>
               </div>
-            </motion.div>
+            </form>
 
-            {/* Right Card: Live Studio Preview Mockup */}
-            <motion.div className="studio-preview-card" variants={itemVariants}>
-              <div className="preview-topbar">
-                <div className="preview-brand">
-                  <span className="live-dot" />
-                  <strong>Studio Monitor</strong>
+            {/* Quick Action Pills Beneath */}
+            <div className="launcher-sub-actions">
+              <button
+                type="button"
+                onClick={handleGenerateRandomName}
+                className="sub-action-chip"
+                title="Generate a creative room name"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-brand" />
+                <span>Random Name</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCreateInstant}
+                className="sub-action-chip"
+                disabled={isCreating || createMutation.isPending}
+                title="Create an instant session immediately"
+              >
+                <Radio className="w-3.5 h-3.5 text-brand" />
+                <span>Instant Room</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopyQuickLink}
+                className="sub-action-chip"
+                title="Copy direct invite link to clipboard"
+              >
+                {copiedLink ? <Check className="w-3.5 h-3.5 text-brand" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedLink ? "Link Copied!" : "Copy Quick Invite"}</span>
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Clean Bento Quick Access Cards */}
+          <motion.div className="home-dashboard-cards-grid" variants={itemVariants}>
+            {/* Card 1: Media Library Shortcut */}
+            <div 
+              className="home-bento-card media-shortcut"
+              onClick={() => navigate("/dashboard")}
+            >
+              <div className="bento-card-header">
+                <div className="bento-icon-container">
+                  <FolderOpen className="w-5 h-5 text-brand" />
                 </div>
-                <span className="preview-stat-pill mono">4K • 60 FPS</span>
-              </div>
-
-              <div className="preview-stage-grid">
-                <div className="preview-tile">
-                  <div className="tile-avatar">H</div>
-                  <span className="tile-name">Host (You)</span>
-                  <div className="tile-wave">
-                    {[40, 80, 50, 95, 60].map((h, i) => (
-                      <span key={i} className="mini-wave-bar" style={{ height: `${h}%` }} />
-                    ))}
-                  </div>
-                  <span className="tile-tag mono">4K Master</span>
-                </div>
-
-                <div className="preview-tile guest-tile">
-                  <div className="tile-avatar guest">G</div>
-                  <span className="tile-name">Guest (Co-Host)</span>
-                  <div className="tile-wave">
-                    {[60, 40, 90, 70, 50].map((h, i) => (
-                      <span key={i} className="mini-wave-bar" style={{ height: `${h}%` }} />
-                    ))}
-                  </div>
-                  <span className="tile-tag mono">4K Master</span>
+                <div className="bento-arrow-indicator">
+                  <ChevronRight className="w-4 h-4" />
                 </div>
               </div>
-
-              <div className="preview-footer mono">
-                <span>Lossless 48kHz WAV</span>
-                <span>•</span>
-                <span>Separate Tracks</span>
-                <span>•</span>
-                <span>Auto Sync</span>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Feature Highlights Bento Row */}
-          <motion.div className="home-feature-strip" variants={itemVariants}>
-            <div className="strip-card">
-              <div className="strip-icon-wrap">
-                <Layers className="w-4 h-4 text-brand" />
-              </div>
-              <div>
-                <h4>Isolated Multi-Tracks</h4>
-                <p>Host & guest audio/video recorded locally with separate master outputs.</p>
+              <h3 className="bento-card-title">Media Library</h3>
+              <p className="bento-card-desc">
+                Access, stream, and download isolated master audio and video tracks from past sessions.
+              </p>
+              <div className="bento-card-footer">
+                <span className="bento-meta-pill">View All Cloud Recordings</span>
               </div>
             </div>
 
-            <div className="strip-card">
-              <div className="strip-icon-wrap">
-                <ShieldCheck className="w-4 h-4 text-brand" />
+            {/* Card 2: Studio Audio & Video Engine */}
+            <div className="home-bento-card">
+              <div className="bento-card-header">
+                <div className="bento-icon-container">
+                  <Mic className="w-5 h-5 text-brand" />
+                </div>
+                <span className="bento-badge-active">4K / 48kHz</span>
               </div>
-              <div>
-                <h4>Zero-Friction Guest Join</h4>
-                <p>1-click browser join without software installs or guest accounts.</p>
+              <h3 className="bento-card-title">Independent Multi-Tracks</h3>
+              <p className="bento-card-desc">
+                Host and guests are captured locally in lossless 48kHz audio and uncompressed video with zero crosstalk.
+              </p>
+              <div className="bento-card-footer">
+                <span className="bento-meta-pill">Zero Bandwidth Artifacts</span>
               </div>
             </div>
 
-            <div className="strip-card">
-              <div className="strip-icon-wrap">
-                <FolderOpen className="w-4 h-4 text-brand" />
+            {/* Card 3: Guest-Ready Direct Joining */}
+            <div className="home-bento-card">
+              <div className="bento-card-header">
+                <div className="bento-icon-container">
+                  <ShieldCheck className="w-5 h-5 text-brand" />
+                </div>
+                <span className="bento-badge-active">No Installs</span>
               </div>
-              <div>
-                <h4>Cloud Media Library</h4>
-                <p>Manage, stream, and download past master recordings instantly.</p>
+              <h3 className="bento-card-title">Frictionless Guest Join</h3>
+              <p className="bento-card-desc">
+                Guests join in 2 seconds right in Chrome, Safari, Edge, or mobile with zero signups or software required.
+              </p>
+              <div className="bento-card-footer">
+                <span className="bento-meta-pill">1-Click Private Link</span>
               </div>
             </div>
           </motion.div>

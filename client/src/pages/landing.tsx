@@ -181,7 +181,7 @@ function Landing() {
               <Film className="w-5 h-5 text-brand" />
             </div>
             <input 
-              type="text"
+              type="text" 
               placeholder="Enter studio name (e.g. tech-talk-ep-42)..."
               value={roomInput}
               onChange={(e) => setRoomInput(e.target.value)}
