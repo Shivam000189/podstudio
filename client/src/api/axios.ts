@@ -1,7 +1,18 @@
 import axios from "axios";
 
+const getBaseURL = () => {
+  let url = (import.meta.env.VITE_API_URL || "/api").trim();
+  // Remove trailing slashes
+  url = url.replace(/\/+$/, "");
+  // If user provided origin like https://podstudio.onrender.com without /api, ensure /api is present
+  if (url.startsWith("http") && !url.endsWith("/api") && !url.includes("/api/")) {
+    return `${url}/api`;
+  }
+  return url;
+};
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: getBaseURL(),
   withCredentials: true,
 });
 

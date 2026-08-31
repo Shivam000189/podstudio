@@ -72,13 +72,27 @@ app.use(cors((req, callback) => {
   return callback(null, { origin: false, credentials: true });
 }));
 
-// Routes
+// Routes (Support both /api/* and root /* for seamless deployment compatibility)
 app.use('/api/auth', authRoutes);
-app.use('/api', roomRoutes);
+app.use('/auth', authRoutes);
+
 app.use('/api/recordings', recordingRoutes);
+app.use('/recordings', recordingRoutes);
+
+app.use('/api', roomRoutes);
+app.use('/', roomRoutes);
 
 // Health check endpoints for deployment platforms (Render, Railway, Fly.io, AWS)
-app.get(['/', '/health', '/api/health'], (_req: Request, res: Response) => {
+app.get(['/health', '/api/health', '/api'], (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'PodStudio Recording API',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     service: 'PodStudio Recording API',
