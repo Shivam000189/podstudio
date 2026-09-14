@@ -1,14 +1,14 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { getRecordings, deleteRecording, updateRecording } from "../api/recording";
+import { useAuth } from "../hooks/useAuth";
 import { RecordingCard } from "../components/RecordingCard";
 import {
   FolderOpen,
   Plus,
-  ArrowLeft,
   Search,
   ChevronDown,
   Clock,
@@ -17,7 +17,8 @@ import {
   Download,
   Trash2,
   X,
-  Check
+  Check,
+  LogOut
 } from "lucide-react";
 import "../App.css";
 
@@ -74,6 +75,7 @@ const AnimatedCounter = ({ end, duration = 1200 }: { end: number; duration?: num
 export function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user, signOut } = useAuth();
   const [playingRecording, setPlayingRecording] = useState<Recording | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
@@ -151,33 +153,68 @@ export function Dashboard() {
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
+  const handleLogout = async () => {
+    if (signOut) {
+      await signOut();
+    } else {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="dashboard-shell">
-      {/* Top Header */}
-      <header className="dashboard-header">
-        <div className="dashboard-header-content">
-          <div className="dashboard-title-group">
-            <button 
-              type="button"
-              onClick={() => navigate("/home")} 
-              className="dash-back-btn"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Studio</span>
-            </button>
-            <div className="dash-title-wrap">
-              <h1 className="dashboard-title">Media Library</h1>
-              <span className="dash-count-pill mono">{recordings?.length || 0} Sessions</span>
-            </div>
+      {/* Top Nav — same pattern as Home */}
+      <header className="home-top-nav">
+        <div className="home-nav-container">
+          <div className="home-brand" onClick={() => navigate("/home")}>
+            <span className="brand-logo-badge">R</span>
+            <span className="brand-name">PodStudio</span>
           </div>
 
-          <button 
-            onClick={() => navigate("/home")} 
-            className="dash-new-session-btn"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Session</span>
-          </button>
+          <div className="home-nav-center">
+            <button
+              type="button"
+              className="home-nav-pill"
+              onClick={() => navigate("/home")}
+            >
+              <span>Studio Hub</span>
+            </button>
+            <button
+              type="button"
+              className="home-nav-pill active"
+              onClick={() => navigate("/dashboard")}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>Media Library</span>
+            </button>
+          </div>
+
+          <div className="home-nav-user">
+            {user ? (
+              <div className="user-profile-menu">
+                <div className="user-profile-badge">
+                  <div className="user-avatar-initial">
+                    {user.name?.charAt(0)?.toUpperCase() || "U"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="logout-ghost-btn"
+                  title="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="auth-guest-links">
+                <Link to="/login" className="guest-login-link">Sign In</Link>
+                <Link to="/register" className="guest-register-btn">Get Started</Link>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -195,7 +232,7 @@ export function Dashboard() {
                 <Film className="w-4 h-4 text-brand" />
               </div>
               <div>
-                <div className="stat-value">
+                <div className="stat-value syncopate">
                   <AnimatedCounter end={stats.count} />
                 </div>
                 <div className="stat-label mono">Total Master Tracks</div>
@@ -207,7 +244,7 @@ export function Dashboard() {
                 <Clock className="w-4 h-4 text-brand" />
               </div>
               <div>
-                <div className="stat-value">
+                <div className="stat-value syncopate">
                   {formatTotalDuration(stats.totalDuration)}
                 </div>
                 <div className="stat-label mono">Total Recorded Time</div>
@@ -219,7 +256,7 @@ export function Dashboard() {
                 <HardDrive className="w-4 h-4 text-brand" />
               </div>
               <div>
-                <div className="stat-value">
+                <div className="stat-value syncopate">
                   {formatTotalSize(stats.totalSize)}
                 </div>
                 <div className="stat-label mono">Cloud Master Storage</div>
