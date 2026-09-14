@@ -16,21 +16,38 @@ const API = axios.create({
   withCredentials: true,
 });
 
+// Token resolver — set by useAuth hook when Clerk is active, so we can
+// always fetch a fresh Clerk session token on every API request.
+let _clerkTokenResolver: (() => Promise<string | null>) | null = null;
+
+export function setClerkTokenResolver(resolver: () => Promise<string | null>) {
+  _clerkTokenResolver = resolver;
+}
+
+export function clearClerkTokenResolver() {
+  _clerkTokenResolver = null;
+}
+
 API.interceptors.request.use(
   async (config) => {
-    let token = localStorage.getItem("token");
-    
-    // Check if Clerk is loaded globally and provide active session token
-    if (typeof window !== "undefined" && (window as any).Clerk?.session) {
+    let token: string | null = null;
+
+    // If Clerk is managing auth, always get a fresh session token
+    if (_clerkTokenResolver) {
       try {
-        const clerkToken = await (window as any).Clerk.session.getToken();
-        if (clerkToken) {
-          token = clerkToken;
-          localStorage.setItem("token", clerkToken);
+        token = await _clerkTokenResolver();
+        if (token) {
+          // Cache in localStorage so other parts of the app can check auth state
+          localStorage.setItem("token", token);
         }
       } catch {
-        // Fallback to cached token
+        // Clerk resolver failed — fall through to localStorage
       }
+    }
+
+    // Fallback to localStorage (email/password login flow)
+    if (!token) {
+      token = localStorage.getItem("token");
     }
 
     if (token) {
@@ -45,9 +62,14 @@ API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
+      // Only redirect to login if Clerk is NOT managing the session.
+      // When Clerk is active, the useAuth hook handles auth state — a 401
+      // just means the token expired and Clerk will refresh it automatically.
+      if (!_clerkTokenResolver) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

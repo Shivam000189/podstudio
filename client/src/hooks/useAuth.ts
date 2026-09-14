@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useUser, useAuth as useClerkAuth, useClerk } from "@clerk/clerk-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import API from "../api/axios";
+import { setClerkTokenResolver, clearClerkTokenResolver } from "../api/axios";
 
 export type AuthUser = {
     _id: string;
@@ -14,11 +15,14 @@ export type AuthUser = {
 const isClerkEnabled = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 export function useAuth() {
+    const queryClient = useQueryClient();
+    const hasSynced = useRef(false);
+
     // 1. Clerk hook queries (if enabled)
     let clerkUser: any = null;
     let isUserLoaded = true;
     let isSignedIn = false;
-    let clerkGetToken: any = null;
+    let clerkGetToken: (() => Promise<string | null>) | null = null;
     let clerkSignOut: any = null;
 
     if (isClerkEnabled) {
@@ -38,11 +42,24 @@ export function useAuth() {
         }
     }
 
-    // Sync Clerk user with local backend database
+    // 2. Register / clear the Clerk token resolver on the axios instance
+    //    so every API request automatically gets a fresh Clerk session token.
     useEffect(() => {
-        if (isSignedIn && clerkUser && clerkGetToken) {
+        if (isSignedIn && clerkGetToken) {
+            setClerkTokenResolver(clerkGetToken);
+        } else if (isClerkEnabled && isUserLoaded && !isSignedIn) {
+            // Clerk loaded but user signed out — clear resolver
+            clearClerkTokenResolver();
+        }
+    }, [isSignedIn, isUserLoaded, clerkGetToken]);
+
+    // 3. Sync Clerk user with local backend database (once per session)
+    useEffect(() => {
+        if (isSignedIn && clerkUser && clerkGetToken && !hasSynced.current) {
+            hasSynced.current = true;
             const syncUser = async () => {
                 try {
+                    // Get a fresh token before the sync call
                     const token = await clerkGetToken();
                     if (token) {
                         localStorage.setItem('token', token);
@@ -58,13 +75,18 @@ export function useAuth() {
                     });
                 } catch (err) {
                     console.warn("Could not sync Clerk user to local DB:", err);
+                    hasSynced.current = false; // Allow retry
                 }
             };
             syncUser();
         }
+        // Reset sync flag when user signs out
+        if (!isSignedIn) {
+            hasSynced.current = false;
+        }
     }, [isSignedIn, clerkUser, clerkGetToken]);
 
-    // 2. Local token query (for email/password users)
+    // 4. Local token query (for email/password users only — skip when Clerk is signed in)
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     const { data: localUser, isLoading: isLocalLoading } = useQuery({
         queryKey: ['auth', 'me'],
@@ -93,7 +115,7 @@ export function useAuth() {
         staleTime: 5 * 60 * 1000,
     });
 
-    // 3. Resolve active authenticated user
+    // 5. Resolve active authenticated user
     const resolvedUser: AuthUser | null = isSignedIn && clerkUser
         ? {
             _id: clerkUser.id,
@@ -104,7 +126,11 @@ export function useAuth() {
           }
         : localUser || null;
 
-    const isLoading = isClerkEnabled ? (!isUserLoaded && Boolean(!resolvedUser && token)) : isLocalLoading;
+    // isLoading must be true while Clerk is still initializing,
+    // otherwise ProtectedRoute will flash-redirect to /login.
+    const isLoading = isClerkEnabled
+        ? !isUserLoaded
+        : isLocalLoading;
     const isAuthenticated = Boolean(resolvedUser);
 
     return {
@@ -112,8 +138,10 @@ export function useAuth() {
         isLoading,
         isAuthenticated,
         signOut: async () => {
+            clearClerkTokenResolver();
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            queryClient.clear();
             if (isSignedIn && clerkSignOut) {
                 await clerkSignOut();
             } else {
@@ -128,4 +156,5 @@ export function useAuth() {
         },
     };
 }
+
 
