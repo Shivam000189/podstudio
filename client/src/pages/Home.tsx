@@ -6,10 +6,8 @@ import API from "../api/axios";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import {
-  Video,
   Radio,
   ArrowRight,
-  Sparkles,
   LogOut,
   FolderOpen,
   Copy,
@@ -93,11 +91,6 @@ export function Home() {
     }
   };
 
-  const handleGenerateRandomName = () => {
-    const randomPick = randomNames[Math.floor(Math.random() * randomNames.length)];
-    const num = Math.floor(Math.random() * 90) + 10;
-    setCustomRoom(`${randomPick}-${num}`);
-  };
 
   const handleCopyQuickLink = () => {
     const demoRoom = customRoom.trim() 
