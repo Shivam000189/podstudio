@@ -1,38 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const nanoid_1 = require("nanoid");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const room_controller_1 = require("../controllers/room.controller");
 const router = (0, express_1.Router)();
-const generateId = (0, nanoid_1.customAlphabet)('abcdefghijklmnopqrstuvwxyz0123456789', 6);
-const temporaryRooms = new Map();
-router.post('/rooms/create', (req, res) => {
-    const { createId } = req.body;
-    const roomId = generateId();
-    const room = {
-        roomId,
-        createId,
-        createdAt: new Date().toISOString(),
-        participants: []
-    };
-    temporaryRooms.set(roomId, room);
-    res.status(201).json({
-        GenerateID: roomId
-    });
-});
-router.get('/rooms/:id', (req, res) => {
-    const { id } = req.params;
-    const room = temporaryRooms.get(id);
-    if (!room)
-        return res.status(404).json({ error: 'Room not found' });
-    // Add this user to participants (you'd send userId from frontend)
-    const userId = req.headers['x-user-id'] || 'guest_' + Math.random().toString(36).slice(2, 7);
-    if (!room.participants.includes(userId)) {
-        room.participants.push(userId);
-    }
-    res.json({
-        roomId: room.roomId,
-        participants: room.participants,
-        participantCount: room.participants.length
-    });
-});
+router.post("/rooms/create", auth_middleware_1.authMiddleware, room_controller_1.createRoom);
+router.get("/rooms/:id", room_controller_1.joinRoom);
+router.patch("/rooms/:id/end", auth_middleware_1.authMiddleware, room_controller_1.endRoom);
 exports.default = router;

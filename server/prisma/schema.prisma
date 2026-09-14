@@ -27,6 +27,7 @@ model User {
   deleted_at       DateTime? 
 
   recordings Recording[] 
+  rooms Room[]
 }
 
 
@@ -47,6 +48,24 @@ model Recording {
   @@index([userId])
   @@index([createdAt])
 }
+
+
+model Room {
+  id           String    @id @default(uuid())
+  code         String    @unique
+  createdBy    String
+  creator      User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  participants String[]  @default([])
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([code])
+  @@index([createdBy])
+}
+
+
+
 
 
 
