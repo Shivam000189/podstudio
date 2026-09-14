@@ -138,7 +138,7 @@ function Landing() {
               Sign In
             </Link>
             <Link to="/register" className="nav-cta-btn">
-              Launch Studio
+              Register
             </Link>
           </div>
         </motion.header>
@@ -150,7 +150,7 @@ function Landing() {
 
           {/* Main Headline */}
           <motion.h1 
-            className="realix-hero-title pt-20"
+            className="realix-hero-title pt-10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
@@ -176,28 +176,16 @@ function Landing() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <div className="prompt-icon">
-              <Film className="w-5 h-5 text-brand" />
-            </div>
             <input 
               type="text" 
-              placeholder="Enter studio name (e.g. tech-talk-ep-42)..."
+              placeholder="Join Link"
               value={roomInput}
               onChange={(e) => setRoomInput(e.target.value)}
               className="prompt-input"
             />
             <div className="prompt-actions">
-              <button 
-                type="button" 
-                className="prompt-demo-btn"
-                onClick={handleCopyDemoLink}
-                title="Copy Quick Demo Studio Invite"
-              >
-                {copiedLink ? <Check className="w-4 h-4 text-brand" /> : <Copy className="w-4 h-4" />}
-                <span>{copiedLink ? "Link Copied" : "Demo Link"}</span>
-              </button>
               <button type="submit" className="prompt-submit-btn">
-                <span>Start Recording</span>
+                <span>Join</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -237,8 +225,7 @@ function Landing() {
             <div className="frame-topbar">
               <div className="frame-brand">
                 <span className="live-rec-dot" />
-                <strong>PodStudio Live Master Studio</strong>
-                <span className="frame-pill-stat">4K • 60 FPS</span>
+                <strong>PodStudio Live</strong>
               </div>
 
               <div className="frame-tab-group">
@@ -247,7 +234,7 @@ function Landing() {
                   className={`frame-tab ${activeTab === 'split' ? 'active' : ''}`}
                   onClick={() => setActiveTab('split')}
                 >
-                  Split View (1:1)
+                  Split View
                 </button>
                 <button 
                   type="button" 
@@ -340,12 +327,6 @@ function Landing() {
                       <strong>Alex Rivera</strong>
                       <span className="badge-role">HOST</span>
                     </div>
-                    <div className="participant-wave">
-                      <span className="p-bar p-1" />
-                      <span className="p-bar p-2" />
-                      <span className="p-bar p-3" />
-                    </div>
-                    <div className="participant-tag">4K Master</div>
                   </div>
 
                   {activeTab === 'split' && (
@@ -355,12 +336,6 @@ function Landing() {
                         <strong>Elena Rostova</strong>
                         <span className="badge-role guest">GUEST</span>
                       </div>
-                      <div className="participant-wave">
-                        <span className="p-bar p-2" />
-                        <span className="p-bar p-3" />
-                        <span className="p-bar p-1" />
-                      </div>
-                      <div className="participant-tag">4K Master</div>
                     </div>
                   )}
                 </motion.div>
@@ -368,7 +343,7 @@ function Landing() {
             </AnimatePresence>
 
             {/* Bottom Footer Info inside Frame */}
-            <div className="frame-bottom-bar">
+            {/* <div className="frame-bottom-bar">
               <div className="engine-status">
                 <Cpu className="w-3.5 h-3.5 text-brand" />
                 <span>Local Track Engine: <strong>Active</strong></span>
@@ -380,7 +355,7 @@ function Landing() {
                 <span>•</span>
                 <span>Auto Cloud Sync</span>
               </div>
-            </div>
+            </div> */}
           </div>
         </motion.div>
       </section>
