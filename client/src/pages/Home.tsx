@@ -44,15 +44,15 @@ const itemVariants: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } }
 };
 
-const randomNames = [
-  "tech-talks-live",
-  "founder-stories",
-  "deep-dive-ep",
-  "creator-studio",
-  "weekly-roundup",
-  "design-critique",
-  "science-unfiltered"
-];
+// const randomNames = [
+//   "tech-talks-live",
+//   "founder-stories",
+//   "deep-dive-ep",
+//   "creator-studio",
+//   "weekly-roundup",
+//   "design-critique",
+//   "science-unfiltered"
+// ];
 
 export function Home() {
   const navigate = useNavigate();
