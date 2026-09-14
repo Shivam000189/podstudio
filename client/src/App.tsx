@@ -57,7 +57,7 @@ function App() {
           />
 
           {/* Unknown paths should enter the authentication flow. */}
-          <Route path='*' element={<Navigate to="/login" replace />} />
+          <Route path='*' element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

@@ -139,7 +139,6 @@ export function Home() {
               className="home-nav-pill active"
               onClick={() => navigate("/home")}
             >
-              <Radio className="w-3.5 h-3.5" />
               <span>Studio Hub</span>
             </button>
             <button
@@ -161,7 +160,6 @@ export function Home() {
                   </div>
                   <div className="user-text-info">
                     <span className="user-name-text">{user.name || "Creator"}</span>
-                    <span className="user-email-text">{user.email}</span>
                   </div>
                 </div>
                 <button
@@ -193,10 +191,6 @@ export function Home() {
         >
           {/* Hero Intro Header */}
           <motion.div className="home-hero-center" variants={itemVariants}>
-            <div className="home-badge-glass">
-              <span className="live-indicator-dot" />
-              <span>Local 4K Master Engine Active</span>
-            </div>
             
             <h1 className="home-main-title">
               Studio-Quality Remote Recording, <br className="hidden sm:inline" />
@@ -216,11 +210,11 @@ export function Home() {
             <form onSubmit={handleLaunchNamedRoom} className="launcher-form-wrapper">
               <div className="launcher-input-group">
                 <div className="launcher-input-icon">
-                  <Video className="w-5 h-5 text-brand" />
+                  {/* <Video className="w-5 h-5 text-brand" /> */}
                 </div>
                 <input
                   type="text"
-                  placeholder="Enter studio room name (e.g. tech-podcast-ep1)..."
+                  placeholder="Enter studio room name..."
                   value={customRoom}
                   onChange={(e) => setCustomRoom(e.target.value)}
                   className="launcher-text-field"
@@ -248,15 +242,6 @@ export function Home() {
 
             {/* Quick Action Pills Beneath */}
             <div className="launcher-sub-actions">
-              <button
-                type="button"
-                onClick={handleGenerateRandomName}
-                className="sub-action-chip"
-                title="Generate a creative room name"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-brand" />
-                <span>Random Name</span>
-              </button>
 
               <button
                 type="button"
@@ -311,7 +296,7 @@ export function Home() {
                 <div className="bento-icon-container">
                   <Mic className="w-5 h-5 text-brand" />
                 </div>
-                <span className="bento-badge-active">4K / 48kHz</span>
+                {/* <span className="bento-badge-active">4K / 48kHz</span> */}
               </div>
               <h3 className="bento-card-title">Independent Multi-Tracks</h3>
               <p className="bento-card-desc">
