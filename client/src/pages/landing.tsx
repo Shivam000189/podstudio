@@ -185,7 +185,7 @@ function Landing() {
             />
             <div className="prompt-actions">
               <button type="submit" className="prompt-submit-btn">
-                <span>Join</span>
+                <span>Join Now</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
