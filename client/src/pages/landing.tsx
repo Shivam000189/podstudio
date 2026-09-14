@@ -13,11 +13,7 @@ import {
   ShieldCheck,
   Sliders,
   ChevronDown,
-  Star,
-  Film,
-  Cpu,
-  Copy,
-  Check
+  Star
 } from "lucide-react";
 import "../App.css";
 
@@ -93,7 +89,6 @@ function Landing() {
   const [comparisonMode, setComparisonMode] = useState<"standard" | "podstudio">("podstudio");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [roomInput, setRoomInput] = useState("");
-  const [copiedLink, setCopiedLink] = useState(false);
 
   const handleLaunchRoom = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,12 +97,6 @@ function Landing() {
     } else {
       navigate('/register');
     }
-  };
-
-  const handleCopyDemoLink = () => {
-    navigator.clipboard.writeText(window.location.origin + "/room/demo-studio-session");
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   return (
