@@ -1,143 +1,320 @@
-# Podstudio
+<div align="center">
 
-Podstudio is a full-stack recording workspace for creating polished video content with remote guests. It combines a React recording experience with authentication, rooms, real-time communication, and cloud-backed recording storage, so a creator can move from a conversation to a publishable piece of content without stitching together several disconnected tools.
+# 🎙️ PodStudio
 
-## Why I built this
+**Professional Remote Video & Podcast Recording Studio in the Browser**
 
-Remote conversations are easy to start but surprisingly hard to turn into reliable content: people jump between video calls, file transfers, editing tools, and publishing dashboards, while important recordings end up scattered across devices. I built Podstudio to explore a more focused workflow where the recording room, participant experience, and resulting media live in one place. The goal is not just to collect features, but to make the path from “let’s record” to “this is ready to share” feel calmer and more intentional.
+*Lossless multi-peer WebRTC recording, passwordless guest verification, dynamic canvas compositing, and automated cloud publishing.*
 
-## Product Preview
+<br/>
 
-The repository includes screenshots of the main public flows:
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?style=flat-square&logo=socket.io&logoColor=white)](https://socket.io/)
+[![WebRTC](https://img.shields.io/badge/WebRTC-P2P%20Mesh-333333?style=flat-square&logo=webrtc&logoColor=white)](https://webrtc.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-7.9-2D3748?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Cloudinary](https://img.shields.io/badge/Cloudinary-HD%20Media-3448C5?style=flat-square&logo=cloudinary&logoColor=white)](https://cloudinary.com/)
 
-![Podstudio landing page](docs/screenshots/landing.png)
+</div>
 
-![Podstudio login page](docs/screenshots/login.png)
+---
 
-![Podstudio signup page](docs/screenshots/signup.png)
+## 🌟 Overview
 
-The recording interface artwork used in the product is also available here:
+**PodStudio** is a full-stack, browser-native recording studio inspired by Riverside.fm. It empowers creators to host high-fidelity remote recording sessions with guests across the globe without quality degradation or complex software setups.
 
-![Podstudio recording interface](client/public/piciamge.jfif)
+With native **Multi-Peer WebRTC Mesh signaling**, **lossless multi-track canvas compositing**, **passwordless Email OTP guest access**, and **automatic cloud archiving**, PodStudio streamlines the entire lifecycle from live conversation to ready-to-publish media.
 
-## Main capabilities
+---
 
-- Create an account and sign in with JWT authentication.
-- Create and join recording rooms with shareable room IDs.
-- Support real-time room events with Socket.IO and WebRTC hooks.
-- Upload and manage recordings through the API.
-- Store uploaded media with Cloudinary and recording metadata with Prisma/PostgreSQL.
-- Use a responsive Podstudio landing, login, and signup experience.
+## 📸 Product Preview & Screenshots
 
-## Tech stack
+### 1. 🚀 Landing Page & Guest Verification
+Modern landing portal introducing PodStudio capabilities alongside a frictionless direct room-join interface.
 
-**Client:** React, TypeScript, Vite, React Router, TanStack Query, Socket.IO client
+<div align="center">
+  <img src="docs/screenshots/landingpage.png" alt="PodStudio Landing Page & Guest Portal" width="100%" />
+</div>
 
-**Server:** Node.js, Express, TypeScript, Socket.IO, Prisma, PostgreSQL, Cloudinary
+<br/>
 
-## Run Podstudio locally
+### 2. 🔐 Authentication Experience
+Secure authentication powered by Clerk and native JWT sessions with isolated security boundaries.
+
+<div align="center">
+  <img src="docs/screenshots/login.png" alt="PodStudio Login & Authentication Portal" width="100%" />
+</div>
+
+<br/>
+
+### 3. 📊 Studio Dashboard & Recording Library
+Creator workspace to create instant studio rooms, manage invite links, and review uploaded sessions with duration and metadata.
+
+<div align="center">
+  <img src="docs/screenshots/home.png" alt="PodStudio Creator Dashboard" width="100%" />
+</div>
+
+<br/>
+
+### 4. 🎬 Live Studio Recording Room
+High-definition live stage with targeted multi-peer video feeds, dynamic grid layouts (Solo, Split, PiP, Group), Web Audio mixing, and Post-Take Cloud Hub.
+
+<div align="center">
+  <img src="docs/screenshots/recodingscreen.png" alt="PodStudio Live Studio Recording Stage" width="100%" />
+</div>
+
+---
+
+## ✨ Key Features
+
+### 📡 Multi-Peer WebRTC Mesh
+- **Targeted Signaling**: Room-wide broadcast cross-talk eliminated via targeted `to`/`from` socket routing.
+- **ICE Candidate Queuing**: Early candidate arrivals before `setRemoteDescription` are buffered and automatically flushed, avoiding dropped connections.
+- **Dynamic Peer Maps**: Tracks `RTCPeerConnection` instances per participant with isolated state updates.
+
+### ✉️ Passwordless Guest Join (Email OTP)
+- **Zero-Account Access**: Guests enter the room code, receive a time-limited 6-digit cryptographic OTP via email, and join the session directly without registration.
+- **Scoped Permissions**: Guests enjoy full video/audio interaction while studio recording controls and cloud uploads remain securely host-gated.
+
+### 🎥 Lossless Multi-Stream Compositing
+- **Real-Time Canvas Compositing**: Composites local and all remote video tracks into an adaptive HD canvas grid (1-peer, 2-peer side-by-side, 4-peer 2x2 grid, 6-peer 3x2 grid).
+- **Web Audio Multi-Track Mixing**: Automatically mixes Opus audio tracks from all connected peers into a single lossless output.
+- **Dual Export**: Download local high-bitrate WebM or upload directly to your Cloudinary media library.
+
+### 🛡️ Host Disconnect Grace & Auto-Save
+- **15-Second Grace Timer**: Protects studio sessions from accidental tab reloads, browser crashes, or transient network blips.
+- **Auto-Save on Termination**: If a host leaves with an active recording take, the system finalizes and automatically uploads the session to cloud storage.
+
+### 🌐 STUN & TURN Traversal
+- Integrated Google & Twilio STUN fallback servers with configurable TURN relay support (`VITE_TURN_URL`) for seamless connections across symmetric corporate NATs and firewalls.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client ["Client (React + Vite)"]
+        UI[Studio Stage & Dock]
+        WebRTC[useWebRTC Multi-Peer Hook]
+        Rec[useRecording Canvas & Audio Mixer]
+        Sock[useSocket Auth & Signaling]
+    end
+
+    subgraph Server ["Server (Node.js + Express)"]
+        API[Express REST API]
+        SIO[Socket.IO Signaling & Room Engine]
+        Prisma[Prisma ORM Client]
+        Mailer[Nodemailer / SMTP Email Service]
+    end
+
+    subgraph Cloud ["External Cloud Services"]
+        PG[(PostgreSQL Database)]
+        Cloudinary[(Cloudinary Media Storage)]
+        STUN[Google / Twilio STUN & TURN]
+    end
+
+    UI --> WebRTC
+    UI --> Rec
+    UI --> Sock
+    Sock <-->|Signaling & Room State| SIO
+    WebRTC <-->|P2P Audio/Video Streams| WebRTC
+    WebRTC -.->|NAT Traversal| STUN
+    Rec -->|Upload Recording Blob| API
+    API --> Prisma --> PG
+    API --> Mailer
+    API --> Cloudinary
+```
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+- **Framework:** React 19 + TypeScript + Vite
+- **Routing & State:** React Router 7, TanStack React Query
+- **Styling & Motion:** Vanilla CSS tokens, Framer Motion
+- **Media & Realtime:** WebRTC (`RTCPeerConnection`), Web Audio API (`AudioContext`), Canvas API, `socket.io-client`
+- **Auth:** Clerk SDK + Guest Session Tokens
+
+### Backend
+- **Runtime:** Node.js 20+ & Express
+- **Realtime Engine:** Socket.IO with JWT Handshake Auth
+- **Database & ORM:** PostgreSQL + Prisma ORM
+- **Media Storage:** Cloudinary SDK + Multer
+- **Email Service:** Nodemailer (SMTP / Gmail / Resend)
+- **Security:** `bcryptjs` for OTP hashing, isolated JWT scopes
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
+- **Node.js**: `v20.x` or higher
+- **npm**: `v10.x` or higher
+- **PostgreSQL**: Local instance or hosted (Supabase, Neon, Railway, Render)
+- **Cloudinary Account**: For cloud recording storage
 
-- Node.js 20 or newer
-- npm
-- A PostgreSQL database
-- A Cloudinary account for recording uploads
+---
 
-### 1. Clone the repository
-
+### 1. Clone the Repository
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/Shivam000189/podstudio.git
 cd Riverside
 ```
 
-### 2. Install dependencies
+---
 
-Install the client and server dependencies in separate terminals, or run the commands one after another:
+### 2. Configure Environment Variables
 
-```bash
-cd client
-npm install
-
-cd ../server
-npm install
-```
-
-### 3. Configure the server
-
-Create `server/.env`:
+#### Server Configuration (`server/.env`)
+Create `server/.env` based on `server/.env.example`:
 
 ```env
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?schema=public"
-JWT_SECRET="replace-with-a-long-random-secret"
-CLIENT_URL="http://localhost:5173"
 PORT=4000
+NODE_ENV=development
 
-CLOUDINARY_CLOUD_NAME="your-cloud-name"
-CLOUDINARY_API_KEY="your-api-key"
-CLOUDINARY_API_SECRET="your-api-secret"
+# PostgreSQL Database Connection URL
+DATABASE_URL="postgresql://username:password@localhost:5432/podstudio?schema=public"
+
+# JWT Secrets (min 32 chars)
+JWT_SECRET="your-secure-random-jwt-secret-min-32-characters"
+GUEST_JWT_SECRET="your-guest-jwt-secret-min-32-characters"
+
+# Allowed Frontend Origins (Comma-separated)
+CLIENT_URL="http://localhost:5173"
+
+# Cloudinary Storage
+CLOUDINARY_CLOUD_NAME="your_cloud_name"
+CLOUDINARY_API_KEY="your_cloudinary_api_key"
+CLOUDINARY_API_SECRET="your_cloudinary_api_secret"
+
+# Optional Clerk Authentication Keys
+CLERK_PUBLISHABLE_KEY="pk_test_your_clerk_key"
+CLERK_SECRET_KEY="sk_test_your_clerk_secret_key"
+
+# Email SMTP for Guest OTP (Leave empty to log OTPs to console in dev)
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="your-email@gmail.com"
+SMTP_PASS="your-app-password"
+SMTP_FROM="PodStudio <noreply@podstudio.app>"
+
+OTP_EXPIRY_MINUTES=5
+OTP_MAX_ATTEMPTS=5
 ```
 
-`DATABASE_URL`, `JWT_SECRET`, and the Cloudinary values are required for the complete backend workflow. `CLIENT_URL` is used for local CORS configuration.
+#### Client Configuration (`client/.env`)
+Create `client/.env` based on `client/.env.example`:
 
-### 4. Prepare the database
+```env
+# Backend API & Socket URLs
+VITE_API_URL=http://localhost:4000/api
+VITE_SOCKET_URL=http://localhost:4000
 
-From the `server` directory, apply the Prisma migrations:
+# Clerk Authentication Publishable Key
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_key
 
-```bash
-npx prisma migrate deploy
+# Optional WebRTC TURN Server (Metered.ca / Twilio / Xirsys)
+VITE_TURN_URL=
+VITE_TURN_USERNAME=
+VITE_TURN_CREDENTIAL=
 ```
 
-### 5. Start the application
+---
 
-Start the API in one terminal:
+### 3. Install Dependencies & Initialize Database
 
 ```bash
+# Install Server Dependencies & Generate Prisma Client
+cd server
+npm install
+npx prisma generate
+npx prisma db push
+
+# Install Client Dependencies
+cd ../client
+npm install
+```
+
+---
+
+### 4. Run Development Servers
+
+Run backend and frontend in separate terminals:
+
+```bash
+# Terminal 1 — Start Backend API & Socket Server (Port 4000)
 cd server
 npm run dev
-```
 
-Start the Vite client in another:
-
-```bash
+# Terminal 2 — Start Frontend Vite App (Port 5173)
 cd client
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser. The API runs at [http://localhost:4000](http://localhost:4000).
+Open **[http://localhost:5173](http://localhost:5173)** in your browser.
 
-## Client configuration
+---
 
-The client uses `/api` by default. If the API is running on a different origin, create `client/.env`:
+## 📦 Production Build & Deployment
 
-```env
-VITE_API_URL=http://localhost:4000/api
+### Build for Production
+```bash
+# Build Client
+npm run build --prefix client
+
+# Build Server
+npm run build --prefix server
 ```
 
-## Useful commands
-
-Run these from `client`:
+### Docker Deployment
+Run the full-stack system locally via Docker Compose:
 
 ```bash
-npm run dev
-npm run build
-npm run lint
+docker-compose up --build
 ```
 
-Run this from `server`:
+---
 
-```bash
-npm run dev
-```
-
-## Project structure
+## 📂 Project Structure
 
 ```text
-client/   React application, pages, hooks, API client, and UI
-server/   Express API, authentication, rooms, uploads, and Prisma
+Riverside/
+├── client/                     # Frontend Application (React + Vite)
+│   ├── src/
+│   │   ├── api/                # Axios API clients & upload endpoints
+│   │   ├── components/         # VideoPlayer, Navigation, Modals
+│   │   ├── hooks/              # useWebRTC, useRecording, useSocket, useAuth
+│   │   ├── pages/              # Landing, Home Dashboard, Studio Room, Auth
+│   │   └── services/           # Socket.IO connection factory
+│   └── public/                 # Static assets & illustrations
+│
+├── server/                     # Backend API & Realtime Server
+│   ├── prisma/                 # Prisma database schema & migrations
+│   ├── src/
+│   │   ├── controllers/        # Room, Recording, OTP, and Auth controllers
+│   │   ├── middlewares/        # Auth, Guest, and Error middlewares
+│   │   ├── routes/             # REST route declarations
+│   │   ├── services/           # Email OTP, Cloudinary, Token services
+│   │   └── server.ts           # Express setup, Socket.IO & WebRTC signaling
+│
+├── docs/
+│   └── screenshots/            # UI screenshots & preview assets
+├── docker-compose.yml          # Multi-container orchestration
+└── DEPLOYMENT.md               # Step-by-step production deployment guide
 ```
 
-## Notes
+---
 
-- Do not commit `.env` files or Cloudinary credentials.
-- The server defaults to a development JWT secret only when `NODE_ENV` is not production. Always provide `JWT_SECRET` in production.
+## 📜 License
+
+This project is licensed under the **MIT License**.
+
+---
+
+<div align="center">
+  <b>Built with ❤️ by Shivam</b>
+</div>
