@@ -33,8 +33,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.endRoom = exports.joinRoom = exports.createRoom = void 0;
+exports.verifyOtp = exports.requestOtp = exports.endRoom = exports.joinRoom = exports.createRoom = void 0;
 const roomService = __importStar(require("../services/room.service"));
+const guestToken_1 = require("../utils/guestToken");
 // POST /api/rooms/create - requires auth, so every room has a real owner
 const createRoom = async (req, res) => {
     try {
@@ -56,14 +57,12 @@ const createRoom = async (req, res) => {
     }
 };
 exports.createRoom = createRoom;
-// GET /api/rooms/:id - left open (no authMiddleware) so invited guests
-// without an account can still join via the shared link.
+// GET /api/rooms/:id - now requires authMiddleware so only logged-in
+// users can join directly. Guests must go through the OTP flow.
 const joinRoom = async (req, res) => {
     try {
         const code = req.params.id;
-        const headerUserId = req.headers["x-user-id"];
-        const participantId = (Array.isArray(headerUserId) ? headerUserId[0] : headerUserId) ||
-            `guest_${Math.random().toString(36).slice(2, 7)}`;
+        const participantId = req.userId;
         const room = await roomService.addParticipant(code, participantId);
         res.json({
             success: true,
@@ -94,3 +93,76 @@ const endRoom = async (req, res) => {
     }
 };
 exports.endRoom = endRoom;
+// ─── OTP Endpoints (no authMiddleware — guests aren't logged in) ────
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// POST /api/rooms/:id/otp/request
+const requestOtp = async (req, res) => {
+    try {
+        const roomCode = req.params.id;
+        const { email } = req.body;
+        if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email.trim())) {
+            res.status(400).json({
+                success: false,
+                message: "A valid email address is required.",
+            });
+            return;
+        }
+        try {
+            await roomService.requestOtp(roomCode, email.trim().toLowerCase());
+        }
+        catch (err) {
+            if (err?.status === 404) {
+                console.warn(`⚠️ [requestOtp] Room "${roomCode}" not found in database. No email sent.`);
+            }
+            else {
+                console.error("❌ [requestOtp] Failed to send OTP email:", err);
+            }
+        }
+        // Always return success to prevent room code enumeration
+        res.json({
+            success: true,
+            message: "If a room with that code exists, a verification code has been sent to your email.",
+        });
+    }
+    catch (error) {
+        console.error("Request OTP error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Something went wrong. Please try again.",
+        });
+    }
+};
+exports.requestOtp = requestOtp;
+// POST /api/rooms/:id/otp/verify
+const verifyOtp = async (req, res) => {
+    try {
+        const roomCode = req.params.id;
+        const { email, code } = req.body;
+        if (!email || !code) {
+            res.status(400).json({
+                success: false,
+                message: "Email and verification code are required.",
+            });
+            return;
+        }
+        const room = await roomService.verifyOtp(roomCode, email.trim().toLowerCase(), code.trim());
+        // Sign a guest JWT so the client can authenticate on Socket.IO
+        const guestToken = (0, guestToken_1.signGuestToken)({
+            roomCode: room.code,
+            email: email.trim().toLowerCase(),
+        });
+        res.json({
+            success: true,
+            guestToken,
+            roomId: room.code,
+            participants: room.participants,
+            participantCount: room.participants.length,
+        });
+    }
+    catch (error) {
+        res
+            .status(error.status || 500)
+            .json({ success: false, message: error.message || "Verification failed." });
+    }
+};
+exports.verifyOtp = verifyOtp;

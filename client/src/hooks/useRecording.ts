@@ -4,8 +4,15 @@ type RecordingState = "idle" | "recording" | "stopped";
 
 export function useRecording(
   localStream: MediaStream | null,
-  remoteStream: MediaStream | null
+  remoteStreamsInput: MediaStream[] | MediaStream | null = []
 ) {
+  // Normalize remoteStreams into an array
+  const remoteStreams = Array.isArray(remoteStreamsInput)
+    ? remoteStreamsInput
+    : remoteStreamsInput
+    ? [remoteStreamsInput]
+    : [];
+
   const [recordingState, setRecordingState] =
     useState<RecordingState>("idle");
 
@@ -22,12 +29,11 @@ export function useRecording(
   const animationFrame = useRef<number | null>(null);
 
   const localVideoEl = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoEl = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoEls = useRef<Map<string, HTMLVideoElement>>(new Map());
 
   const audioContext = useRef<AudioContext | null>(null);
 
-
-  // Create hidden video elements
+  // Manage hidden video elements for local and remote streams
   useEffect(() => {
     if (localStream && !localVideoEl.current) {
       const vid = document.createElement("video");
@@ -37,157 +43,105 @@ export function useRecording(
       localVideoEl.current = vid;
     }
 
-    if (remoteStream && !remoteVideoEl.current) {
-      const vid = document.createElement("video");
-      vid.srcObject = remoteStream;
-      vid.play().catch(() => {});
-      remoteVideoEl.current = vid;
-    }
-  }, [localStream, remoteStream]);
+    // Sync remote video elements
+    const currentStreamIds = new Set<string>();
+    remoteStreams.forEach((stream) => {
+      if (!stream) return;
+      currentStreamIds.add(stream.id);
+      if (!remoteVideoEls.current.has(stream.id)) {
+        const vid = document.createElement("video");
+        vid.srcObject = stream;
+        vid.muted = true;
+        vid.play().catch(() => {});
+        remoteVideoEls.current.set(stream.id, vid);
+      }
+    });
 
+    // Remove video elements for streams that left
+    remoteVideoEls.current.forEach((vid, streamId) => {
+      if (!currentStreamIds.has(streamId)) {
+        vid.srcObject = null;
+        remoteVideoEls.current.delete(streamId);
+      }
+    });
+  }, [localStream, remoteStreams]);
 
   const getCombinedStream = useCallback(() => {
     const canvas = document.createElement("canvas");
-
     canvas.width = 1280;
     canvas.height = 720;
 
     const ctx = canvas.getContext("2d");
-
     if (!ctx) return null;
-
 
     const draw = () => {
       ctx.fillStyle = "#111827";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      const allVideoEls: HTMLVideoElement[] = [];
+      if (localVideoEl.current && localVideoEl.current.readyState >= 2) {
+        allVideoEls.push(localVideoEl.current);
+      }
+      remoteVideoEls.current.forEach((vid) => {
+        if (vid.readyState >= 2) {
+          allVideoEls.push(vid);
+        }
+      });
 
-      const hasRemote =
-        remoteVideoEl.current &&
-        remoteVideoEl.current.readyState >= 2;
+      const count = allVideoEls.length;
+      if (count === 1) {
+        ctx.drawImage(allVideoEls[0], 0, 0, canvas.width, canvas.height);
+      } else if (count === 2) {
+        const w = canvas.width / 2;
+        const h = canvas.height;
+        ctx.drawImage(allVideoEls[0], 0, 0, w, h);
+        ctx.drawImage(allVideoEls[1], w, 0, w, h);
+      } else if (count > 2) {
+        const cols = count <= 4 ? 2 : 3;
+        const rows = Math.ceil(count / cols);
+        const w = canvas.width / cols;
+        const h = canvas.height / rows;
 
-      const hasLocal =
-        localVideoEl.current &&
-        localVideoEl.current.readyState >= 2;
-
-
-      if (hasRemote) {
-        ctx.drawImage(
-          remoteVideoEl.current!,
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-      } else if (hasLocal) {
-        ctx.drawImage(
-          localVideoEl.current!,
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
+        allVideoEls.forEach((vid, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          ctx.drawImage(vid, col * w, row * h, w, h);
+        });
       }
 
-
-      // Picture in picture
-      if (hasLocal && hasRemote) {
-        const pipW = 320;
-        const pipH = 240;
-
-        const pipX = canvas.width - pipW - 24;
-        const pipY = 24;
-
-
-        ctx.fillStyle = "#000";
-        ctx.fillRect(
-          pipX - 4,
-          pipY - 4,
-          pipW + 8,
-          pipH + 8
-        );
-
-
-        ctx.drawImage(
-          localVideoEl.current!,
-          pipX,
-          pipY,
-          pipW,
-          pipH
-        );
-
-
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.fillRect(
-          pipX,
-          pipY + pipH - 28,
-          50,
-          28
-        );
-
-
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 14px sans-serif";
-        ctx.fillText(
-          "You",
-          pipX + 10,
-          pipY + pipH - 8
-        );
-      }
-
-
-      animationFrame.current =
-        requestAnimationFrame(draw);
+      animationFrame.current = requestAnimationFrame(draw);
     };
-
 
     draw();
 
-
     const canvasStream = canvas.captureStream(30);
-
 
     // Audio mixing
     audioContext.current = new AudioContext();
+    const destination = audioContext.current.createMediaStreamDestination();
 
-    const destination =
-      audioContext.current.createMediaStreamDestination();
-
-
-    if (localStream) {
+    if (localStream && localStream.getAudioTracks().length > 0) {
       try {
-        const source =
-          audioContext.current.createMediaStreamSource(
-            localStream
-          );
-
+        const source = audioContext.current.createMediaStreamSource(localStream);
         source.connect(destination);
       } catch {}
     }
 
+    remoteStreams.forEach((rStream) => {
+      if (rStream && rStream.getAudioTracks().length > 0) {
+        try {
+          const source = audioContext.current!.createMediaStreamSource(rStream);
+          source.connect(destination);
+        } catch {}
+      }
+    });
 
-    if (remoteStream) {
-      try {
-        const source =
-          audioContext.current.createMediaStreamSource(
-            remoteStream
-          );
-
-        source.connect(destination);
-      } catch {}
-    }
-
-
-    destination.stream
-      .getAudioTracks()
-      .forEach((track) => {
-        canvasStream.addTrack(track);
-      });
-
+    destination.stream.getAudioTracks().forEach((track) => {
+      canvasStream.addTrack(track);
+    });
 
     return canvasStream;
-
-  }, [localStream, remoteStream]);
+  }, [localStream, remoteStreams]);
 
 
 

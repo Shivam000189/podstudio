@@ -1,4 +1,4 @@
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -73,9 +73,11 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         stopMedia 
     } = useMedia();
     
-    const { hasExistingUsers, socket, leaveRoom, roomEnded, endRoomByHost } = useSocket(id, socketToken);
-    const { remoteStream, closeConnection } = useWebRTC(stream, id, socket, hasExistingUsers);
+    const { usersInRoom, socket, leaveRoom, roomEnded, endRoomByHost } = useSocket(id, socketToken);
+    const { remoteStreams, closeConnection } = useWebRTC(stream, id, socket, usersInRoom);
     
+    const remoteMediaStreams = useMemo(() => remoteStreams.map((r) => r.stream), [remoteStreams]);
+
     const {
         recordingState,
         elapsedTime,
@@ -88,7 +90,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         stopRecording,
         stopAndGetBlob,
         resetRecording
-    } = useRecording(stream, remoteStream);
+    } = useRecording(stream, remoteMediaStreams);
 
     // If room has ended, clean up local media streams
     useEffect(() => {
@@ -362,7 +364,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                         <span>{selectedResolution} • 60fps</span>
                     </div>
 
-                    {remoteStream && (
+                    {remoteStreams.length === 1 && (
                         <button 
                             type="button" 
                             className="header-icon-btn"
@@ -392,7 +394,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
 
             {/* Video Stage Layout */}
             <main className="studio-stage">
-                <div className={`stage-grid ${remoteStream ? `layout-${layoutMode}` : 'layout-solo'}`}>
+                <div className={`stage-grid ${remoteStreams.length === 0 ? 'layout-solo' : remoteStreams.length === 1 ? `layout-${layoutMode}` : 'layout-group'}`}>
                     {/* Local User Stream Card — fills the stage when alone */}
                     <div className={`studio-video-card local-stream-card ${isAudioEnabled ? 'speaking' : ''}`}>
                         <VideoPlayer 
@@ -401,12 +403,12 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                             label={`${hostName} (You)`}
                             isVideoEnabled={isVideoEnabled}
                             isAudioEnabled={isAudioEnabled}
-                            isHost={true}
+                            isHost={!isGuest}
                             avatarLetter={hostInitial}
                         />
 
                         {/* Subtle Floating Waiting Pill when alone in the room */}
-                        {!remoteStream && (
+                        {remoteStreams.length === 0 && (
                             <div className="solo-waiting-pill">
                                 <span className="live-indicator-dot" />
                                 <span>Waiting for guest to join</span>
@@ -421,20 +423,20 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                         )}
                     </div>
 
-                    {/* Remote Guest Stream — only rendered once a peer joins */}
-                    {remoteStream && (
-                        <div className="studio-video-card remote-stream-card speaking">
+                    {/* Remote Guest Streams — rendered for all joined peers */}
+                    {remoteStreams.map((peer, index) => (
+                        <div key={peer.peerId} className="studio-video-card remote-stream-card speaking">
                             <VideoPlayer 
-                                stream={remoteStream} 
+                                stream={peer.stream} 
                                 muted={false} 
-                                label="Guest • Co-Host"
+                                label={remoteStreams.length > 1 ? `Participant ${index + 1}` : "Guest • Co-Host"}
                                 isVideoEnabled={true}
                                 isAudioEnabled={true}
                                 isHost={false}
-                                avatarLetter="G"
+                                avatarLetter={`G${index > 0 ? index + 1 : ''}`}
                             />
                         </div>
-                    )}
+                    ))}
                 </div>
             </main>
 

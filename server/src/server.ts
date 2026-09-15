@@ -283,17 +283,29 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC signaling events
-  socket.on('offer', (payload) => {
-    socket.to(payload.roomId).emit('offer', payload);
+  // WebRTC signaling events — targeted per peer with sender attribution
+  socket.on('offer', (payload: { to?: string; roomId: string; sdp: any }) => {
+    if (payload.to) {
+      io.to(payload.to).emit('offer', { ...payload, from: socket.id });
+    } else {
+      socket.to(payload.roomId).emit('offer', { ...payload, from: socket.id });
+    }
   });
 
-  socket.on('answer', (payload) => {
-    socket.to(payload.roomId).emit('answer', payload);
+  socket.on('answer', (payload: { to?: string; roomId: string; sdp: any }) => {
+    if (payload.to) {
+      io.to(payload.to).emit('answer', { ...payload, from: socket.id });
+    } else {
+      socket.to(payload.roomId).emit('answer', { ...payload, from: socket.id });
+    }
   });
 
-  socket.on('ice-candidate', (payload) => {
-    socket.to(payload.roomId).emit('ice-candidate', payload);
+  socket.on('ice-candidate', (payload: { to?: string; roomId: string; candidate: any }) => {
+    if (payload.to) {
+      io.to(payload.to).emit('ice-candidate', { ...payload, from: socket.id });
+    } else {
+      socket.to(payload.roomId).emit('ice-candidate', { ...payload, from: socket.id });
+    }
   });
 
   // Handle disconnect

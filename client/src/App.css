@@ -537,6 +537,12 @@ button:disabled {
   align-items: center;
 }
 
+.stage-grid.layout-group {
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  align-items: center;
+  justify-content: center;
+}
+
 .stage-grid.layout-pip {
   position: relative;
   grid-template-columns: 1fr;
@@ -3616,7 +3622,8 @@ button:disabled {
 
 /* Responsive Media Queries */
 @media (max-width: 1024px) {
-  .stage-grid.layout-split {
+  .stage-grid.layout-split,
+  .stage-grid.layout-group {
     grid-template-columns: 1fr;
   }
   .auth-page {

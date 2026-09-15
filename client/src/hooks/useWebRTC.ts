@@ -1,170 +1,219 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
 
+export type RemotePeer = {
+  peerId: string;
+  stream: MediaStream;
+};
+
 export function useWebRTC(
   localStream: MediaStream | null,
   roomId: string | undefined,
   socket: Socket | null,
-  hasExistingUsers: boolean
+  usersInRoom: string[]
 ) {
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [connectionState, setConnectionState] = useState<'idle' | 'connecting' | 'connected' | 'disconnected'>('idle');
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   
-  const peerConnection = useRef<RTCPeerConnection | null>(null);
-  const pendingOffer = useRef<RTCSessionDescriptionInit | null>(null);
-  const hasCreatedOffer = useRef(false);
+  const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const pendingOffers = useRef<Map<string, RTCSessionDescriptionInit>>(new Map());
 
-  const createPeerConnection = useCallback(() => {
+  const createPeerConnection = useCallback((peerId: string) => {
+    // If existing pc for this peer, close it first
+    if (peerConnections.current.has(peerId)) {
+      peerConnections.current.get(peerId)?.close();
+      peerConnections.current.delete(peerId);
+    }
+
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
 
+    // Attach local stream tracks immediately if available
+    if (localStream) {
+      localStream.getTracks().forEach((track) => {
+        pc.addTrack(track, localStream);
+      });
+    }
+
     pc.onicecandidate = (event) => {
       if (event.candidate && roomId && socket) {
-        socket.emit('ice-candidate', { roomId, candidate: event.candidate });
+        socket.emit('ice-candidate', { to: peerId, roomId, candidate: event.candidate });
       }
     };
 
     pc.ontrack = (event) => {
-      console.log('🎥 Received remote track!');
-      setRemoteStream(event.streams[0]);
-      setConnectionState('connected');
+      console.log(`🎥 Received remote track from peer ${peerId}`);
+      const stream = event.streams[0] || new MediaStream([event.track]);
+      setRemoteStreams((prev) => {
+        const next = new Map(prev);
+        next.set(peerId, stream);
+        return next;
+      });
     };
 
     pc.onconnectionstatechange = () => {
-      console.log('Connection state:', pc.connectionState);
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        setConnectionState('disconnected');
-        setRemoteStream(null);
+      console.log(`Connection state with ${peerId}:`, pc.connectionState);
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        setRemoteStreams((prev) => {
+          if (!prev.has(peerId)) return prev;
+          const next = new Map(prev);
+          next.delete(peerId);
+          return next;
+        });
       }
     };
 
+    peerConnections.current.set(peerId, pc);
     return pc;
-  }, [roomId, socket]);
+  }, [roomId, socket, localStream]);
 
-  // Set up signaling listeners IMMEDIATELY (don't wait for localStream)
+  // Helper to process an incoming offer from a specific peer
+  const processOffer = useCallback(async (peerId: string, sdp: RTCSessionDescriptionInit) => {
+    if (!localStream || !socket) return;
+
+    const pc = createPeerConnection(peerId);
+
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socket.emit('answer', { to: peerId, roomId, sdp: answer });
+    } catch (err) {
+      console.error(`Error processing offer from ${peerId}:`, err);
+    }
+  }, [localStream, socket, roomId, createPeerConnection]);
+
+  // Set up signaling listeners
   useEffect(() => {
     if (!roomId || !socket) return;
 
-    const handleOffer = async (payload: { roomId: string; sdp: RTCSessionDescriptionInit }) => {
-      console.log('📩 Received offer');
-      
+    const handleOffer = async (payload: { from: string; roomId: string; sdp: RTCSessionDescriptionInit }) => {
+      const peerId = payload.from;
+      if (!peerId) return;
+      console.log(`📩 Received offer from ${peerId}`);
+
       if (!localStream) {
-        console.log('⏳ Local stream not ready, queuing offer...');
-        pendingOffer.current = payload.sdp;
+        console.log(`⏳ Local stream not ready for ${peerId}, queuing offer...`);
+        pendingOffers.current.set(peerId, payload.sdp);
         return;
       }
-      
-      await processOffer(payload.sdp);
+
+      await processOffer(peerId, payload.sdp);
     };
 
-    const handleAnswer = async (payload: { roomId: string; sdp: RTCSessionDescriptionInit }) => {
-      console.log('📩 Received answer');
-      if (peerConnection.current) {
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      }
-    };
-
-    const handleIceCandidate = async (payload: { roomId: string; candidate: RTCIceCandidateInit }) => {
-      if (peerConnection.current && peerConnection.current.remoteDescription) {
+    const handleAnswer = async (payload: { from: string; sdp: RTCSessionDescriptionInit }) => {
+      const peerId = payload.from;
+      if (!peerId) return;
+      console.log(`📩 Received answer from ${peerId}`);
+      const pc = peerConnections.current.get(peerId);
+      if (pc) {
         try {
-          await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         } catch (err) {
-          console.error('Error adding ICE candidate:', err);
+          console.error(`Error setting remote description for ${peerId}:`, err);
         }
       }
+    };
+
+    const handleIceCandidate = async (payload: { from: string; candidate: RTCIceCandidateInit }) => {
+      const peerId = payload.from;
+      if (!peerId) return;
+      const pc = peerConnections.current.get(peerId);
+      if (pc && pc.remoteDescription) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        } catch (err) {
+          console.error(`Error adding ICE candidate from ${peerId}:`, err);
+        }
+      }
+    };
+
+    const handleUserLeft = (peerId: string) => {
+      console.log(`👋 Peer left: ${peerId}`);
+      if (peerConnections.current.has(peerId)) {
+        peerConnections.current.get(peerId)?.close();
+        peerConnections.current.delete(peerId);
+      }
+      pendingOffers.current.delete(peerId);
+      setRemoteStreams((prev) => {
+        if (!prev.has(peerId)) return prev;
+        const next = new Map(prev);
+        next.delete(peerId);
+        return next;
+      });
     };
 
     socket.on('offer', handleOffer);
     socket.on('answer', handleAnswer);
     socket.on('ice-candidate', handleIceCandidate);
+    socket.on('user-left', handleUserLeft);
 
     return () => {
       socket.off('offer', handleOffer);
       socket.off('answer', handleAnswer);
       socket.off('ice-candidate', handleIceCandidate);
+      socket.off('user-left', handleUserLeft);
     };
-  }, [roomId, socket, localStream]);
+  }, [roomId, socket, localStream, processOffer]);
 
-  // Process queued offer when localStream finally arrives
+  // Process queued offers when localStream arrives
   useEffect(() => {
-    if (localStream && pendingOffer.current && !peerConnection.current) {
-      console.log('📬 Processing queued offer');
-      processOffer(pendingOffer.current);
-      pendingOffer.current = null;
-    }
-  }, [localStream]);
-
-  // Helper to process an offer
-  const processOffer = async (sdp: RTCSessionDescriptionInit) => {
-    if (!localStream || !socket) return;
-    
-    const pc = createPeerConnection();
-    peerConnection.current = pc;
-
-    localStream.getTracks().forEach((track) => {
-      pc.addTrack(track, localStream);
-    });
-
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    socket.emit('answer', { roomId, sdp: answer });
-    setConnectionState('connecting');
-  };
-
-  // NEW USER: Create offer when we detect existing users
-  useEffect(() => {
-    if (!localStream || !roomId || !socket || !hasExistingUsers) return;
-    if (hasCreatedOffer.current) return; // Prevent duplicate offers
-    if (peerConnection.current) return; // Already connected
-
-    const initiateCall = async () => {
-      console.log('📞 Creating offer as new joiner');
-      hasCreatedOffer.current = true;
-      
-      const pc = createPeerConnection();
-      peerConnection.current = pc;
-
-      localStream.getTracks().forEach((track) => {
-        pc.addTrack(track, localStream);
+    if (localStream && pendingOffers.current.size > 0) {
+      pendingOffers.current.forEach((sdp, peerId) => {
+        if (!peerConnections.current.has(peerId)) {
+          console.log(`📬 Processing queued offer for ${peerId}`);
+          processOffer(peerId, sdp);
+        }
       });
+      pendingOffers.current.clear();
+    }
+  }, [localStream, processOffer]);
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+  // NEW JOINER: Create offer for each existing user in the room
+  useEffect(() => {
+    if (!localStream || !roomId || !socket || usersInRoom.length === 0) return;
 
-      socket.emit('offer', { roomId, sdp: offer });
-      setConnectionState('connecting');
-    };
+    usersInRoom.forEach(async (peerId) => {
+      if (!peerConnections.current.has(peerId)) {
+        console.log(`📞 Creating offer for existing peer ${peerId}`);
+        const pc = createPeerConnection(peerId);
 
-    initiateCall();
-  }, [localStream, roomId, hasExistingUsers, createPeerConnection, socket]);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit('offer', { to: peerId, roomId, sdp: offer });
+        } catch (err) {
+          console.error(`Error creating offer for ${peerId}:`, err);
+        }
+      }
+    });
+  }, [localStream, roomId, socket, usersInRoom, createPeerConnection]);
+
+  const closeConnection = useCallback(() => {
+    peerConnections.current.forEach((pc) => pc.close());
+    peerConnections.current.clear();
+    pendingOffers.current.clear();
+    setRemoteStreams(new Map());
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (peerConnection.current) {
-        peerConnection.current.close();
-        peerConnection.current = null;
-      }
-      setRemoteStream(null);
-      hasCreatedOffer.current = false;
+      closeConnection();
     };
-  }, []);
+  }, [closeConnection]);
 
+  const remoteStreamsList: RemotePeer[] = Array.from(remoteStreams.entries()).map(
+    ([peerId, stream]) => ({
+      peerId,
+      stream,
+    })
+  );
 
-      const closeConnection = useCallback(() => {
-        if (peerConnection.current) {
-            peerConnection.current.close();
-            peerConnection.current = null;
-        }
-        setRemoteStream(null);
-        setConnectionState('idle');
-        hasCreatedOffer.current = false;
-    }, []);
-
-    return { remoteStream, connectionState, closeConnection };
-
-//   return { remoteStream, connectionState };
+  return {
+    remoteStreams: remoteStreamsList,
+    remoteStreamsMap: remoteStreams,
+    closeConnection,
+  };
 }

@@ -24,5 +24,20 @@ exports.env = {
                 throw new Error("JWT_SECRET must be defined in production");
             })()
             : "riverside-development-secret"),
+    guestJwtSecret: process.env.GUEST_JWT_SECRET ??
+        (process.env.NODE_ENV === "production"
+            ? (() => {
+                throw new Error("GUEST_JWT_SECRET must be defined in production");
+            })()
+            : "riverside-guest-dev-secret"),
+    // SMTP / Email
+    smtpHost: process.env.SMTP_HOST ?? "",
+    smtpPort: Number(process.env.SMTP_PORT ?? 587),
+    smtpUser: process.env.SMTP_USER ?? "",
+    smtpPass: process.env.SMTP_PASS ?? "",
+    smtpFrom: process.env.SMTP_FROM ?? "PodStudio <noreply@podstudio.app>",
+    // OTP tuning
+    otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES ?? 5),
+    otpMaxAttempts: Number(process.env.OTP_MAX_ATTEMPTS ?? 5),
 };
 exports.isProduction = exports.env.nodeEnv === "production";
