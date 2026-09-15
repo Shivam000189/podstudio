@@ -51,16 +51,56 @@ export function Rooms({ isGuest = false }: RoomsProps) {
     const [showSettings, setShowSettings] = useState(false);
     const [selectedResolution, setSelectedResolution] = useState("1080p");
     const [socketToken, setSocketToken] = useState<string | null>(null);
+    const [authTokenError, setAuthTokenError] = useState(false);
+    const [guestAuthMissing, setGuestAuthMissing] = useState(false);
     
-    // Resolve the auth token for the socket connection
+    // Resolve the auth token for the socket connection with automatic retry
     useEffect(() => {
+        let isMounted = true;
+
         if (isGuest) {
             const guestToken = sessionStorage.getItem('podstudio_guest_token');
+            if (!guestToken) {
+                console.warn('Guest joined without a verified OTP session token');
+                setGuestAuthMissing(true);
+                return;
+            }
             setSocketToken(guestToken);
-        } else {
-            // Get the user's auth token
-            getToken().then((token) => setSocketToken(token ?? null));
+            return;
         }
+
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        const fetchTokenWithRetry = async () => {
+            while (attempts < maxAttempts && isMounted) {
+                try {
+                    attempts++;
+                    const token = await getToken();
+                    if (token && isMounted) {
+                        setSocketToken(token);
+                        setAuthTokenError(false);
+                        return;
+                    }
+                } catch (err) {
+                    console.warn(`Attempt ${attempts} failed to fetch auth token:`, err);
+                    if (attempts < maxAttempts && isMounted) {
+                        await new Promise((resolve) => setTimeout(resolve, 800 * attempts));
+                    }
+                }
+            }
+
+            if (isMounted) {
+                console.error('Failed to resolve auth token after multiple attempts');
+                setAuthTokenError(true);
+            }
+        };
+
+        fetchTokenWithRetry();
+
+        return () => {
+            isMounted = false;
+        };
     }, [isGuest, getToken]);
 
     const { 
@@ -73,7 +113,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         stopMedia 
     } = useMedia();
     
-    const { usersInRoom, isHost, socket, leaveRoom, roomEnded, endRoomByHost } = useSocket(id, socketToken);
+    const { usersInRoom, isHost, isWaitingForAuth, authError, socket, leaveRoom, roomEnded, endRoomByHost } = useSocket(id, socketToken);
     const effectiveIsHost = !isGuest && isHost;
     const { remoteStreams, closeConnection } = useWebRTC(stream, id, socket, usersInRoom);
     
@@ -243,12 +283,82 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         addToast(`Switched to ${layoutMode === "split" ? "Picture-in-Picture" : "Side-by-Side"} layout`, "info");
     };
 
-    if (isLoading && !isGuest) {
+    if (guestAuthMissing) {
+        return (
+            <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
+                <div style={{ textAlign: "center", maxWidth: "420px", padding: "32px", borderRadius: "16px", background: "var(--color-surface-card)", border: "1px solid rgba(239, 68, 68, 0.4)" }}>
+                    <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", display: "grid", placeItems: "center", margin: "0 auto 16px", color: "#fca5a5" }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                        </svg>
+                    </div>
+                    <h2 style={{ fontFamily: "var(--font-display)", color: "#ffffff", fontSize: "1.3rem", margin: "0 0 8px" }}>Guest Verification Required</h2>
+                    <p style={{ color: "var(--color-text-secondary)", fontSize: "0.86rem", marginBottom: "20px" }}>
+                        Please enter the room code and verify your email OTP to join as a verified guest.
+                    </p>
+                    <button onClick={() => navigate('/')} className="floating-cta" style={{ width: "100%" }}>
+                        Go to Guest Verification
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (authTokenError) {
+        return (
+            <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
+                <div style={{ textAlign: "center", maxWidth: "420px", padding: "32px", borderRadius: "16px", background: "var(--color-surface-card)", border: "1px solid rgba(239, 68, 68, 0.4)" }}>
+                    <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", display: "grid", placeItems: "center", margin: "0 auto 16px", color: "#fca5a5" }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                        </svg>
+                    </div>
+                    <h2 style={{ fontFamily: "var(--font-display)", color: "#ffffff", fontSize: "1.3rem", margin: "0 0 8px" }}>Session Verification Error</h2>
+                    <p style={{ color: "var(--color-text-secondary)", fontSize: "0.86rem", marginBottom: "20px" }}>
+                        Couldn't verify your studio authentication token. Please retry or return to your dashboard.
+                    </p>
+                    <div style={{ display: "flex", gap: "12px" }}>
+                        <button onClick={() => window.location.reload()} className="floating-cta" style={{ flex: 1 }}>
+                            Retry Connection
+                        </button>
+                        <button onClick={() => navigate('/home')} className="action-chip-btn" style={{ flex: 1, justifyContent: "center" }}>
+                            Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (authError) {
+        return (
+            <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
+                <div style={{ textAlign: "center", maxWidth: "420px", padding: "32px", borderRadius: "16px", background: "var(--color-surface-card)", border: "1px solid rgba(239, 68, 68, 0.4)" }}>
+                    <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", display: "grid", placeItems: "center", margin: "0 auto 16px", color: "#fca5a5" }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                        </svg>
+                    </div>
+                    <h2 style={{ fontFamily: "var(--font-display)", color: "#ffffff", fontSize: "1.3rem", margin: "0 0 8px" }}>Access Denied</h2>
+                    <p style={{ color: "var(--color-text-secondary)", fontSize: "0.86rem", marginBottom: "20px" }}>
+                        {authError}
+                    </p>
+                    <button onClick={() => navigate(isGuest ? '/' : '/home')} className="floating-cta" style={{ width: "100%" }}>
+                        {isGuest ? "Return Home" : "Return to Dashboard"}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if ((isLoading && !isGuest) || (isWaitingForAuth && !socketToken)) {
         return (
             <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
                 <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
                     <div className="spinner" style={{ width: "36px", height: "36px", borderWidth: "3px", borderColor: "rgba(64, 138, 113, 0.2)", borderTopColor: "#408a71" }} />
-                    <p className="mono" style={{ color: "var(--color-text-secondary)", fontSize: "0.82rem" }}>Initializing Studio Environment...</p>
+                    <p className="mono" style={{ color: "var(--color-text-secondary)", fontSize: "0.82rem" }}>
+                        {isWaitingForAuth ? "Authenticating studio session..." : "Initializing Studio Environment..."}
+                    </p>
                 </div>
             </div>
         );

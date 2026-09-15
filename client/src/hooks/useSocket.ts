@@ -17,8 +17,10 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
     const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
     const socketRef = useRef<Socket | null>(null);
 
+    const isWaitingForAuth = Boolean(roomId && !token);
+
     useEffect(() => {
-        if (!roomId) return;
+        if (!roomId || !token) return;
 
         // Create a new socket with the auth token
         const sock = createSocket(token);
@@ -103,6 +105,7 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
 
     return {
         isConnected,
+        isWaitingForAuth,
         usersInRoom,
         hasExistingUsers,
         isHost,
