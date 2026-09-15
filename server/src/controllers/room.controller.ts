@@ -3,14 +3,13 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import * as roomService from "../services/room.service";
 import { signGuestToken } from "../utils/guestToken";
 
-// POST /api/rooms/create - requires auth, so every room has a real owner
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const room = await roomService.createRoom(userId);
 
-    // Keep "GenerateID" as the top-level field: the client
-    // (Home.tsx) already reads response.data.GenerateID directly.
     res.status(201).json({
       success: true,
       GenerateID: room.code,
@@ -24,8 +23,6 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// GET /api/rooms/:id - now requires authMiddleware so only logged-in
-// users can join directly. Guests must go through the OTP flow.
 export const joinRoom = async (req: AuthRequest, res: Response) => {
   try {
     const code = req.params.id as string;
@@ -46,7 +43,6 @@ export const joinRoom = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// PATCH /api/rooms/:id/end - only the creator can close out a room
 export const endRoom = async (req: AuthRequest, res: Response) => {
   try {
     const code = req.params.id as string;
@@ -62,11 +58,6 @@ export const endRoom = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ─── OTP Endpoints (no authMiddleware — guests aren't logged in) ────
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// POST /api/rooms/:id/otp/request
 export const requestOtp = async (req: Request, res: Response) => {
   try {
     const roomCode = req.params.id as string;
@@ -84,13 +75,12 @@ export const requestOtp = async (req: Request, res: Response) => {
       await roomService.requestOtp(roomCode, email.trim().toLowerCase());
     } catch (err: any) {
       if (err?.status === 404) {
-        console.warn(`⚠️ [requestOtp] Room "${roomCode}" not found in database. No email sent.`);
+        console.warn(`[requestOtp] Room "${roomCode}" not found in database. No email sent.`);
       } else {
-        console.error("❌ [requestOtp] Failed to send OTP email:", err);
+        console.error("[requestOtp] Failed to send OTP email:", err);
       }
     }
 
-    // Always return success to prevent room code enumeration
     res.json({
       success: true,
       message: "If a room with that code exists, a verification code has been sent to your email.",
@@ -104,7 +94,6 @@ export const requestOtp = async (req: Request, res: Response) => {
   }
 };
 
-// POST /api/rooms/:id/otp/verify
 export const verifyOtp = async (req: Request, res: Response) => {
   try {
     const roomCode = req.params.id as string;
@@ -124,7 +113,6 @@ export const verifyOtp = async (req: Request, res: Response) => {
       code.trim()
     );
 
-    // Sign a guest JWT so the client can authenticate on Socket.IO
     const guestToken = signGuestToken({
       roomCode: room.code,
       email: email.trim().toLowerCase(),
