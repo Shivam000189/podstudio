@@ -2,11 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { createSocket } from '../services/socket';
 
-/**
- * Manages a Socket.IO connection for a room with auth token support.
- * Creates a fresh socket per mount with the provided token in the
- * handshake auth payload, which the server validates on join-room.
- */
 export function useSocket(roomId: string | undefined, token?: string | null) {
     const [isConnected, setIsConnected] = useState(false);
     const [usersInRoom, setUsersInRoom] = useState<string[]>([]);
@@ -22,7 +17,6 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
     useEffect(() => {
         if (!roomId || !token) return;
 
-        // Create a new socket with the auth token
         const sock = createSocket(token);
         socketRef.current = sock;
         setSocketInstance(sock);
@@ -31,23 +25,23 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
         sock.emit('join-room', roomId);
 
         sock.on('connect', () => {
-            console.log('✅ Socket connected:', sock.id);
+            console.log('Socket connected:', sock.id);
             setIsConnected(true);
             setAuthError(null);
         });
 
         sock.on('disconnect', () => {
-            console.log('❌ Socket disconnected');
+            console.log('Socket disconnected');
             setIsConnected(false);
         });
 
         sock.on('auth-error', (data: { message: string }) => {
-            console.error('🚫 Socket auth error:', data.message);
+            console.error('Socket auth error:', data.message);
             setAuthError(data.message);
         });
 
         sock.on('room-ended', (data: { reason?: string; message?: string }) => {
-            console.warn('⚠️ Room ended event received:', data);
+            console.warn('Room ended event received:', data);
             setRoomEnded({
                 ended: true,
                 reason: data.reason || data.message || 'The studio session has ended.',

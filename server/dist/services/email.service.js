@@ -23,14 +23,10 @@ const transporter = isSmtpConfigured
         },
     })
     : null;
-/**
- * Sends a 6-digit OTP verification email to the guest.
- * In development (no SMTP configured), logs the code to console instead.
- */
 const sendOtpEmail = async (email, code) => {
     const expiryMinutes = env_1.env.otpExpiryMinutes;
     if (!transporter) {
-        console.log(`📧 DEV OTP for ${email}: ${code} (expires in ${expiryMinutes} min)`);
+        console.log(`[DEV OTP] for ${email}: ${code} (expires in ${expiryMinutes} min)`);
         return;
     }
     const html = `

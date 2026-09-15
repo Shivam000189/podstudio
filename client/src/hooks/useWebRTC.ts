@@ -21,7 +21,7 @@ export function useWebRTC(
   const flushPendingIceCandidates = useCallback(async (peerId: string, pc: RTCPeerConnection) => {
     const candidates = pendingIceCandidates.current.get(peerId);
     if (candidates && candidates.length > 0) {
-      console.log(`🧊 Flushing ${candidates.length} queued ICE candidate(s) for ${peerId}`);
+      console.log(`Flushing ${candidates.length} queued ICE candidate(s) for ${peerId}`);
       for (const candidate of candidates) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
@@ -34,7 +34,6 @@ export function useWebRTC(
   }, []);
 
   const createPeerConnection = useCallback((peerId: string) => {
-    // If existing pc for this peer, close it first
     if (peerConnections.current.has(peerId)) {
       peerConnections.current.get(peerId)?.close();
       peerConnections.current.delete(peerId);
@@ -68,7 +67,6 @@ export function useWebRTC(
       iceCandidatePoolSize: 10
     });
 
-    // Attach local stream tracks immediately if available
     if (localStream) {
       localStream.getTracks().forEach((track) => {
         pc.addTrack(track, localStream);
@@ -82,7 +80,7 @@ export function useWebRTC(
     };
 
     pc.ontrack = (event) => {
-      console.log(`🎥 Received remote track from peer ${peerId}`);
+      console.log(`Received remote track from peer ${peerId}`);
       const stream = event.streams[0] || new MediaStream([event.track]);
       setRemoteStreams((prev) => {
         const next = new Map(prev);
@@ -107,7 +105,6 @@ export function useWebRTC(
     return pc;
   }, [roomId, socket, localStream]);
 
-  // Helper to process an incoming offer from a specific peer
   const processOffer = useCallback(async (peerId: string, sdp: RTCSessionDescriptionInit) => {
     if (!localStream || !socket) return;
 
@@ -126,17 +123,16 @@ export function useWebRTC(
     }
   }, [localStream, socket, roomId, createPeerConnection, flushPendingIceCandidates]);
 
-  // Set up signaling listeners
   useEffect(() => {
     if (!roomId || !socket) return;
 
     const handleOffer = async (payload: { from: string; roomId: string; sdp: RTCSessionDescriptionInit }) => {
       const peerId = payload.from;
       if (!peerId) return;
-      console.log(`📩 Received offer from ${peerId}`);
+      console.log(`Received offer from ${peerId}`);
 
       if (!localStream) {
-        console.log(`⏳ Local stream not ready for ${peerId}, queuing offer...`);
+        console.log(`Local stream not ready for ${peerId}, queuing offer...`);
         pendingOffers.current.set(peerId, payload.sdp);
         return;
       }
@@ -147,7 +143,7 @@ export function useWebRTC(
     const handleAnswer = async (payload: { from: string; sdp: RTCSessionDescriptionInit }) => {
       const peerId = payload.from;
       if (!peerId) return;
-      console.log(`📩 Received answer from ${peerId}`);
+      console.log(`Received answer from ${peerId}`);
       const pc = peerConnections.current.get(peerId);
       if (pc) {
         try {
@@ -170,7 +166,7 @@ export function useWebRTC(
           console.error(`Error adding ICE candidate from ${peerId}:`, err);
         }
       } else {
-        console.log(`🧊 Queueing early ICE candidate for peer ${peerId}`);
+        console.log(`Queueing early ICE candidate for peer ${peerId}`);
         if (!pendingIceCandidates.current.has(peerId)) {
           pendingIceCandidates.current.set(peerId, []);
         }
@@ -179,7 +175,7 @@ export function useWebRTC(
     };
 
     const handleUserLeft = (peerId: string) => {
-      console.log(`👋 Peer left: ${peerId}`);
+      console.log(`Peer left: ${peerId}`);
       if (peerConnections.current.has(peerId)) {
         peerConnections.current.get(peerId)?.close();
         peerConnections.current.delete(peerId);
@@ -207,12 +203,11 @@ export function useWebRTC(
     };
   }, [roomId, socket, localStream, processOffer]);
 
-  // Process queued offers when localStream arrives
   useEffect(() => {
     if (localStream && pendingOffers.current.size > 0) {
       pendingOffers.current.forEach((sdp, peerId) => {
         if (!peerConnections.current.has(peerId)) {
-          console.log(`📬 Processing queued offer for ${peerId}`);
+          console.log(`Processing queued offer for ${peerId}`);
           processOffer(peerId, sdp);
         }
       });
@@ -220,13 +215,12 @@ export function useWebRTC(
     }
   }, [localStream, processOffer]);
 
-  // NEW JOINER: Create offer for each existing user in the room
   useEffect(() => {
     if (!localStream || !roomId || !socket || usersInRoom.length === 0) return;
 
     usersInRoom.forEach(async (peerId) => {
       if (!peerConnections.current.has(peerId)) {
-        console.log(`📞 Creating offer for existing peer ${peerId}`);
+        console.log(`Creating offer for existing peer ${peerId}`);
         const pc = createPeerConnection(peerId);
 
         try {
@@ -248,7 +242,6 @@ export function useWebRTC(
     setRemoteStreams(new Map());
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       closeConnection();
