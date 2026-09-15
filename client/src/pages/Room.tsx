@@ -73,7 +73,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         stopMedia 
     } = useMedia();
     
-    const { hasExistingUsers, socket, leaveRoom, authError, roomEnded, endRoomByHost } = useSocket(id, socketToken);
+    const { hasExistingUsers, socket, leaveRoom, roomEnded, endRoomByHost } = useSocket(id, socketToken);
     const { remoteStream, closeConnection } = useWebRTC(stream, id, socket, hasExistingUsers);
     
     const {
