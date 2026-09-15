@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useUser, useAuth as useClerkAuth, useClerk } from "@clerk/clerk-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import API from "../api/axios";
@@ -133,27 +133,31 @@ export function useAuth() {
         : isLocalLoading;
     const isAuthenticated = Boolean(resolvedUser);
 
+    const signOut = useCallback(async () => {
+        clearClerkTokenResolver();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        queryClient.clear();
+        if (isSignedIn && clerkSignOut) {
+            await clerkSignOut();
+        } else {
+            window.location.href = '/login';
+        }
+    }, [isSignedIn, clerkSignOut, queryClient]);
+
+    const getToken = useCallback(async () => {
+        if (isSignedIn && clerkGetToken) {
+            return await clerkGetToken();
+        }
+        return localStorage.getItem('token');
+    }, [isSignedIn, clerkGetToken]);
+
     return {
         user: resolvedUser,
         isLoading,
         isAuthenticated,
-        signOut: async () => {
-            clearClerkTokenResolver();
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            queryClient.clear();
-            if (isSignedIn && clerkSignOut) {
-                await clerkSignOut();
-            } else {
-                window.location.href = '/login';
-            }
-        },
-        getToken: async () => {
-            if (isSignedIn && clerkGetToken) {
-                return await clerkGetToken();
-            }
-            return localStorage.getItem('token');
-        },
+        signOut,
+        getToken,
     };
 }
 

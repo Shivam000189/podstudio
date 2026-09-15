@@ -120,6 +120,8 @@ export const io = new Server(httpServer, {
 
 const roomUsers = new Map<string, Set<string>>(); // roomId -> Set of socketIds
 const roomHosts = new Map<string, string>(); // roomId -> host socketId
+const roomTerminationTimers = new Map<string, NodeJS.Timeout>(); // roomId -> pending termination timer
+const HOST_DISCONNECT_GRACE_MS = 15000; // 15 seconds grace period for network drops / refresh / StrictMode remount
 
 /**
  * Terminates a room session:
@@ -128,6 +130,13 @@ const roomHosts = new Map<string, string>(); // roomId -> host socketId
  * 3. Cleans up memory tracking for the room
  */
 export const terminateRoomSession = async (roomId: string, reason: string) => {
+  // Clear any pending termination timer for this room
+  const pendingTimer = roomTerminationTimers.get(roomId);
+  if (pendingTimer) {
+    clearTimeout(pendingTimer);
+    roomTerminationTimers.delete(roomId);
+  }
+
   try {
     await prisma.room.updateMany({
       where: { code: roomId, endedAt: null },
@@ -232,6 +241,13 @@ io.on('connection', (socket) => {
 
       if (isHost) {
         roomHosts.set(roomId, socket.id);
+        // Cancel pending termination timer if host reconnected within grace period
+        const pendingTimer = roomTerminationTimers.get(roomId);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          roomTerminationTimers.delete(roomId);
+          console.log(`⏱️ Host reconnected to room ${roomId} within grace period. Termination cancelled.`);
+        }
         console.log(`👑 Host ${socket.id} (${participantIdentifier}) joined room ${roomId}`);
       } else {
         console.log(`👤 Guest/Participant ${socket.id} (${participantIdentifier}) joined room ${roomId}`);
@@ -284,11 +300,26 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async () => {
     console.log('❌ Client disconnected:', socket.id);
     
-    // If host disconnected, automatically terminate the room session!
+    // If host disconnected, start grace period before terminating!
     if (socket.data.isHost && socket.data.roomId) {
       const roomId = socket.data.roomId;
-      console.log(`👑 Host disconnected from room ${roomId}. Terminating session.`);
-      await terminateRoomSession(roomId, 'The host has left the studio.');
+      if (roomHosts.get(roomId) === socket.id) {
+        console.log(`⏳ Host disconnected from room ${roomId}. Starting ${HOST_DISCONNECT_GRACE_MS / 1000}s grace period...`);
+
+        // Clear existing timer if any
+        const existingTimer = roomTerminationTimers.get(roomId);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+
+        const timer = setTimeout(async () => {
+          roomTerminationTimers.delete(roomId);
+          console.log(`⌛ Grace period expired for room ${roomId}. Terminating session.`);
+          await terminateRoomSession(roomId, 'The host has left the studio.');
+        }, HOST_DISCONNECT_GRACE_MS);
+
+        roomTerminationTimers.set(roomId, timer);
+      }
     }
 
     // Remove user from all rooms
