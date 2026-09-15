@@ -1,5 +1,9 @@
 import { customAlphabet } from "nanoid";
+import crypto from "crypto";
+import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma";
+import { env } from "../config/env";
+import { sendOtpEmail } from "./email.service";
 
 const generateCode = customAlphabet(
   "abcdefghijklmnopqrstuvwxyz0123456789",
@@ -67,3 +71,88 @@ export const endRoom = async (code: string, requesterId: string) => {
     data: { endedAt: new Date() },
   });
 };
+
+// ─── OTP Flow ───────────────────────────────────────────────────────
+
+/**
+ * Generates a 6-digit OTP, hashes it, stores/upserts it in the database,
+ * and sends the plaintext code to the guest's email.
+ */
+export const requestOtp = async (roomCode: string, email: string) => {
+  // Validate the room exists (we don't reveal this to the client)
+  const room = await getRoomByCode(roomCode);
+  if (!room) {
+    throw { status: 404, message: "Room not found" };
+  }
+
+  // Generate a cryptographically secure 6-digit code
+  const code = crypto.randomInt(100000, 999999).toString();
+  const otpHash = await bcrypt.hash(code, 10);
+  const expiresAt = new Date(Date.now() + env.otpExpiryMinutes * 60 * 1000);
+
+  // Upsert: if an OTP already exists for this room+email, replace it
+  await prisma.roomOtp.upsert({
+    where: { roomCode_email: { roomCode, email } },
+    create: { roomCode, email, otpHash, expiresAt, attempts: 0 },
+    update: { otpHash, expiresAt, attempts: 0 },
+  });
+
+  // Send the plaintext code via email (or console in dev)
+  await sendOtpEmail(email, code);
+};
+
+/**
+ * Verifies a guest-submitted OTP code. On success, adds the guest
+ * as a participant and deletes the used OTP row.
+ */
+export const verifyOtp = async (
+  roomCode: string,
+  email: string,
+  code: string
+) => {
+  const otp = await prisma.roomOtp.findUnique({
+    where: { roomCode_email: { roomCode, email } },
+  });
+
+  if (!otp) {
+    throw { status: 400, message: "No verification code found. Please request a new one." };
+  }
+
+  // Check expiry
+  if (new Date() > otp.expiresAt) {
+    // Clean up expired OTP
+    await prisma.roomOtp.delete({ where: { id: otp.id } });
+    throw { status: 400, message: "Verification code has expired. Please request a new one." };
+  }
+
+  // Increment attempts and check max
+  const updatedOtp = await prisma.roomOtp.update({
+    where: { id: otp.id },
+    data: { attempts: { increment: 1 } },
+  });
+
+  if (updatedOtp.attempts > env.otpMaxAttempts) {
+    await prisma.roomOtp.delete({ where: { id: otp.id } });
+    throw {
+      status: 429,
+      message: "Too many incorrect attempts. Please request a new code.",
+    };
+  }
+
+  // Compare the hash
+  const isValid = await bcrypt.compare(code, otp.otpHash);
+  if (!isValid) {
+    const remaining = env.otpMaxAttempts - updatedOtp.attempts;
+    throw {
+      status: 400,
+      message: `Invalid code. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining.`,
+    };
+  }
+
+  // OTP is valid — add guest as participant and clean up
+  const room = await addParticipant(roomCode, email);
+  await prisma.roomOtp.delete({ where: { id: otp.id } });
+
+  return room;
+};
+

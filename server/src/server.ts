@@ -8,6 +8,9 @@ import { clerkMiddleware } from "@clerk/express";
 import authRoutes from './routes/auth.routes';
 import roomRoutes from './routes/room.routes';
 import recordingRoutes from './routes/recording.routes';
+import { verifyGuestToken } from './utils/guestToken';
+import { verifyToken } from './utils/jwt';
+import { prisma } from './config/prisma';
 
 const app = express();
 const httpServer = createServer(app);
@@ -102,7 +105,7 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // Socket.IO Server Configuration
-const io = new Server(httpServer, {
+export const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
       if (isOriginAllowed(origin)) {
@@ -116,28 +119,152 @@ const io = new Server(httpServer, {
 });
 
 const roomUsers = new Map<string, Set<string>>(); // roomId -> Set of socketIds
+const roomHosts = new Map<string, string>(); // roomId -> host socketId
+
+/**
+ * Terminates a room session:
+ * 1. Sets endedAt in database if not already ended
+ * 2. Emits 'room-ended' to all connected sockets in that room
+ * 3. Cleans up memory tracking for the room
+ */
+export const terminateRoomSession = async (roomId: string, reason: string) => {
+  try {
+    await prisma.room.updateMany({
+      where: { code: roomId, endedAt: null },
+      data: { endedAt: new Date() },
+    });
+    console.log(`🔒 Room ${roomId} marked as ended: ${reason}`);
+  } catch (err) {
+    console.error(`Error terminating room ${roomId}:`, err);
+  }
+
+  io.to(roomId).emit('room-ended', { reason });
+  roomHosts.delete(roomId);
+  roomUsers.delete(roomId);
+};
 
 io.on('connection', (socket) => {
   console.log('🔌 New client connected:', socket.id);
 
-  // room Join
-  socket.on('join-room', (roomId: string) => {
-    socket.join(roomId);
-    
-    // Track user
-    if (!roomUsers.has(roomId)) {
-      roomUsers.set(roomId, new Set());
-    }
-    roomUsers.get(roomId)!.add(socket.id);
+  // Room Join — validates the token from the handshake auth payload & identifies host
+  socket.on('join-room', async (roomId: string) => {
+    const token = socket.handshake.auth?.token as string | undefined;
 
-    console.log(`👤 ${socket.id} joined room ${roomId}`);
-    
-    // Tell everyone else in the room that a new user joined
-    socket.to(roomId).emit('user-joined', socket.id);
-    
-    // Tell the new user how many others are already there
-    const otherUsers = Array.from(roomUsers.get(roomId)!).filter(id => id !== socket.id);
-    socket.emit('room-users', otherUsers);
+    if (!token) {
+      console.warn(`🚫 Socket ${socket.id} tried to join ${roomId} with no token`);
+      socket.emit('auth-error', { message: 'Authentication required to join a room.' });
+      socket.disconnect(true);
+      return;
+    }
+
+    // Check if room exists and whether it has already ended
+    try {
+      const room = await prisma.room.findUnique({ where: { code: roomId } });
+      if (!room) {
+        socket.emit('auth-error', { message: 'Room does not exist.' });
+        socket.disconnect(true);
+        return;
+      }
+
+      if (room.endedAt) {
+        socket.emit('room-ended', { reason: 'This studio session has already ended.' });
+        socket.disconnect(true);
+        return;
+      }
+
+      let isHost = false;
+      let participantIdentifier = '';
+
+      // Try guest token first
+      try {
+        const guestPayload = verifyGuestToken(token);
+        if (guestPayload.roomCode !== roomId) {
+          socket.emit('auth-error', { message: 'Token is not valid for this room.' });
+          socket.disconnect(true);
+          return;
+        }
+        isHost = false;
+        participantIdentifier = guestPayload.email;
+      } catch {
+        // Not a guest token — try regular user token
+        try {
+          const userPayload = verifyToken(token) as { userId: string; email?: string };
+          participantIdentifier = userPayload.userId;
+          if (room.createdBy === userPayload.userId) {
+            isHost = true;
+          }
+        } catch {
+          // Also try Clerk-style token
+          try {
+            const parts = token.split(".");
+            if (parts.length === 3) {
+              const payload = JSON.parse(
+                Buffer.from(parts[1], "base64url").toString("utf-8")
+              );
+              if (!payload.sub || typeof payload.sub !== "string" || !payload.sub.startsWith("user_")) {
+                throw new Error("Not a Clerk token");
+              }
+              const dbUser = await prisma.user.findFirst({
+                where: { clerk_id: payload.sub },
+              });
+              if (dbUser) {
+                participantIdentifier = dbUser.id;
+                if (room.createdBy === dbUser.id) {
+                  isHost = true;
+                }
+              } else {
+                participantIdentifier = payload.sub;
+              }
+            } else {
+              throw new Error("Invalid token format");
+            }
+          } catch {
+            console.warn(`🚫 Socket ${socket.id} failed auth for room ${roomId}`);
+            socket.emit('auth-error', { message: 'Invalid or expired token.' });
+            socket.disconnect(true);
+            return;
+          }
+        }
+      }
+
+      socket.data.isHost = isHost;
+      socket.data.roomId = roomId;
+
+      if (isHost) {
+        roomHosts.set(roomId, socket.id);
+        console.log(`👑 Host ${socket.id} (${participantIdentifier}) joined room ${roomId}`);
+      } else {
+        console.log(`👤 Guest/Participant ${socket.id} (${participantIdentifier}) joined room ${roomId}`);
+      }
+
+      socket.join(roomId);
+      
+      // Track user
+      if (!roomUsers.has(roomId)) {
+        roomUsers.set(roomId, new Set());
+      }
+      roomUsers.get(roomId)!.add(socket.id);
+
+      // Tell everyone else in the room that a new user joined
+      socket.to(roomId).emit('user-joined', socket.id);
+      
+      // Tell the new user how many others are already there
+      const otherUsers = Array.from(roomUsers.get(roomId)!).filter(id => id !== socket.id);
+      socket.emit('room-users', otherUsers);
+    } catch (err) {
+      console.error('Error during room join:', err);
+      socket.emit('auth-error', { message: 'An error occurred while joining the room.' });
+      socket.disconnect(true);
+    }
+  });
+
+  // Explicit Host End-Room Request
+  socket.on('end-room', async (payload: { roomId: string }) => {
+    const targetRoomId = payload?.roomId || socket.data.roomId;
+    if (targetRoomId && (socket.data.isHost || roomHosts.get(targetRoomId) === socket.id)) {
+      console.log(`🛑 Host ${socket.id} explicitly ended room ${targetRoomId}`);
+      await terminateRoomSession(targetRoomId, 'The host has ended the session.');
+    }
   });
 
   // WebRTC signaling events
@@ -154,9 +281,16 @@ io.on('connection', (socket) => {
   });
 
   // Handle disconnect
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     console.log('❌ Client disconnected:', socket.id);
     
+    // If host disconnected, automatically terminate the room session!
+    if (socket.data.isHost && socket.data.roomId) {
+      const roomId = socket.data.roomId;
+      console.log(`👑 Host disconnected from room ${roomId}. Terminating session.`);
+      await terminateRoomSession(roomId, 'The host has left the studio.');
+    }
+
     // Remove user from all rooms
     roomUsers.forEach((users, roomId) => {
       if (users.has(socket.id)) {

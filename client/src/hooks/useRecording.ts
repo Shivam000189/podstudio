@@ -11,6 +11,8 @@ export function useRecording(
 
   const [elapsedTime, setElapsedTime] = useState(0);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [hasUnsavedRecording, setHasUnsavedRecording] = useState(false);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
@@ -258,6 +260,8 @@ export function useRecording(
 
       
       recordedBlob.current = blob;
+      setBlob(blob);
+      setHasUnsavedRecording(true);
 
 
 
@@ -308,8 +312,8 @@ export function useRecording(
     setRecordingState("recording");
     setElapsedTime(0);
     setDownloadUrl(null);
-
-
+    setBlob(null);
+    setHasUnsavedRecording(true);
 
     timerInterval.current =
       setInterval(() => {
@@ -318,14 +322,9 @@ export function useRecording(
         );
       }, 1000);
 
-
-
   }, [getCombinedStream]);
 
-
-
   const stopRecording = useCallback(() => {
-
     if (
       mediaRecorder.current &&
       mediaRecorder.current.state !== "inactive"
@@ -333,58 +332,71 @@ export function useRecording(
       mediaRecorder.current.stop();
     }
 
-
     if (timerInterval.current) {
       clearInterval(
         timerInterval.current
       );
-
       timerInterval.current = null;
     }
-
   }, []);
 
+  const stopAndGetBlob = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      if (!mediaRecorder.current || mediaRecorder.current.state === "inactive") {
+        resolve(recordedBlob.current);
+        return;
+      }
 
+      const recorder = mediaRecorder.current;
 
+      const handleStop = () => {
+        setTimeout(() => {
+          resolve(recordedBlob.current);
+        }, 100);
+      };
+
+      recorder.addEventListener("stop", handleStop, { once: true });
+      recorder.stop();
+
+      if (timerInterval.current) {
+        clearInterval(timerInterval.current);
+        timerInterval.current = null;
+      }
+    });
+  }, []);
+
+  const markAsSaved = useCallback(() => {
+    setHasUnsavedRecording(false);
+  }, []);
 
   const resetRecording = useCallback(() => {
-
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
     }
 
-
     recordedBlob.current = null;
     recordedChunks.current = [];
 
-
+    setBlob(null);
     setDownloadUrl(null);
     setRecordingState("idle");
     setElapsedTime(0);
-
-
+    setHasUnsavedRecording(false);
   }, [downloadUrl]);
 
-
-
-
   useEffect(() => {
-
     return () => {
-
       if (timerInterval.current) {
         clearInterval(
           timerInterval.current
         );
       }
 
-
       if (animationFrame.current) {
         cancelAnimationFrame(
           animationFrame.current
         );
       }
-
 
       if (
         mediaRecorder.current &&
@@ -393,64 +405,43 @@ export function useRecording(
         mediaRecorder.current.stop();
       }
 
-
       if (audioContext.current) {
         audioContext.current.close();
       }
-
 
       if (downloadUrl) {
         URL.revokeObjectURL(downloadUrl);
       }
 
-
       recordedBlob.current = null;
-
     };
-
   }, [downloadUrl]);
 
-
-
-
   const formatTime = (seconds: number) => {
-
     const mins =
       Math.floor(seconds / 60)
         .toString()
         .padStart(2, "0");
-
 
     const secs =
       (seconds % 60)
         .toString()
         .padStart(2, "0");
 
-
     return `${mins}:${secs}`;
-
   };
 
-
-
   return {
-
     recordingState,
-
-    elapsedTime:
-      formatTime(elapsedTime),
-
+    elapsedTime: formatTime(elapsedTime),
+    elapsedSeconds: elapsedTime,
     downloadUrl,
-
-    // NEW: Blob ready for upload
-    blob:
-      recordedBlob.current,
-
+    blob: blob ?? recordedBlob.current,
+    hasUnsavedRecording,
+    markAsSaved,
     startRecording,
-
     stopRecording,
-
+    stopAndGetBlob,
     resetRecording,
-
   };
 }

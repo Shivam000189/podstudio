@@ -15,6 +15,8 @@ import {
   ChevronDown,
   Star
 } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { GuestJoinModal } from "../components/GuestJoinModal";
 import "../App.css";
 
 // Animation Variants
@@ -85,18 +87,36 @@ const testimonials = [
 
 function Landing() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<"host" | "split" | "multitrack">("split");
   const [comparisonMode, setComparisonMode] = useState<"standard" | "podstudio">("podstudio");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [roomInput, setRoomInput] = useState("");
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
+  const [guestRoomCode, setGuestRoomCode] = useState("");
 
   const handleLaunchRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (roomInput.trim()) {
-      navigate(`/room/${encodeURIComponent(roomInput.trim().toLowerCase().replace(/\s+/g, '-'))}`);
+    const trimmed = roomInput.trim().toLowerCase().replace(/\s+/g, '-');
+    if (trimmed) {
+      if (isAuthenticated) {
+        // Authenticated users go straight to the room
+        navigate(`/rooms/${encodeURIComponent(trimmed)}`);
+      } else {
+        // Guests must verify their email via OTP first
+        setGuestRoomCode(trimmed);
+        setGuestModalOpen(true);
+      }
     } else {
       navigate('/register');
     }
+  };
+
+  const handleGuestJoinSuccess = (guestToken: string, roomCode: string) => {
+    sessionStorage.setItem('podstudio_guest_token', guestToken);
+    sessionStorage.setItem('podstudio_guest_room', roomCode);
+    setGuestModalOpen(false);
+    navigate(`/join/${encodeURIComponent(roomCode)}`);
   };
 
   return (
@@ -773,6 +793,13 @@ function Landing() {
           </div>
         </div>
       </footer>
+      {/* Guest OTP Modal */}
+      <GuestJoinModal
+        roomCode={guestRoomCode}
+        isOpen={guestModalOpen}
+        onClose={() => setGuestModalOpen(false)}
+        onSuccess={handleGuestJoinSuccess}
+      />
     </div>
   );
 }

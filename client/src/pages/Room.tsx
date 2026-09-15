@@ -1,4 +1,4 @@
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,25 +26,43 @@ type Toast = {
 
 type LayoutMode = "split" | "pip" | "solo";
 
+interface RoomsProps {
+    isGuest?: boolean;
+}
+
 const fetchRoom = async (roomId: string): Promise<RoomData> => {
     const response = await API.get(`/rooms/${roomId}`);
     return response.data;
 };
 
-export function Rooms() {
+export function Rooms({ isGuest = false }: RoomsProps) {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, getToken } = useAuth();
     const [, startTransition] = useTransition();
     
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
+    const [isTerminating, setIsTerminating] = useState(false);
+    const [terminatingMessage, setTerminatingMessage] = useState("");
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [copied, setCopied] = useState(false);
     const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
     const [showSettings, setShowSettings] = useState(false);
     const [selectedResolution, setSelectedResolution] = useState("1080p");
+    const [socketToken, setSocketToken] = useState<string | null>(null);
     
+    // Resolve the auth token for the socket connection
+    useEffect(() => {
+        if (isGuest) {
+            const guestToken = sessionStorage.getItem('podstudio_guest_token');
+            setSocketToken(guestToken);
+        } else {
+            // Get the user's auth token
+            getToken().then((token) => setSocketToken(token ?? null));
+        }
+    }, [isGuest, getToken]);
+
     const { 
         stream, 
         error: mediaError, 
@@ -55,23 +73,50 @@ export function Rooms() {
         stopMedia 
     } = useMedia();
     
-    const { hasExistingUsers, socket, leaveRoom } = useSocket(id);
+    const { hasExistingUsers, socket, leaveRoom, authError, roomEnded, endRoomByHost } = useSocket(id, socketToken);
     const { remoteStream, closeConnection } = useWebRTC(stream, id, socket, hasExistingUsers);
     
     const {
         recordingState,
         elapsedTime,
+        elapsedSeconds,
         downloadUrl,
         blob,
+        hasUnsavedRecording,
+        markAsSaved,
         startRecording,
         stopRecording,
+        stopAndGetBlob,
         resetRecording
     } = useRecording(stream, remoteStream);
 
+    // If room has ended, clean up local media streams
+    useEffect(() => {
+        if (roomEnded.ended) {
+            stopMedia();
+            closeConnection();
+        }
+    }, [roomEnded.ended, stopMedia, closeConnection]);
+
+    // Warn host if trying to close tab or reload with unsaved recording
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (!isGuest && (recordingState === 'recording' || hasUnsavedRecording)) {
+                e.preventDefault();
+                e.returnValue = "You have an active or unsaved studio recording. Leaving will discard it.";
+                return e.returnValue;
+            }
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [isGuest, recordingState, hasUnsavedRecording]);
+
+    // For authenticated users, call the join API. Guests already verified via OTP.
     const { isLoading, isError } = useQuery({
         queryKey: ['room', id],
         queryFn: () => fetchRoom(id!),
-        enabled: !!id,
+        enabled: !!id && !isGuest,
         retry: false,
     });
 
@@ -103,7 +148,7 @@ export function Rooms() {
         addToast("Uploading studio recording to cloud...", "info");
         
         try {
-            const durationSeconds = elapsedTime.split(':').reduce((acc, time) => (60 * acc) + +time, 0);
+            const durationSeconds = elapsedSeconds || elapsedTime.split(':').reduce((acc, time) => (60 * acc) + +time, 0) || 1;
             
             await uploadRecording(
                 blob,
@@ -113,6 +158,7 @@ export function Rooms() {
                 (percent) => setUploadProgress(percent)
             );
             
+            markAsSaved();
             addToast("Recording saved successfully to your library!", "success");
         } catch (err: any) {
             const message = err.response?.data?.message || "Upload failed";
@@ -122,14 +168,71 @@ export function Rooms() {
         }
     };
 
-    const handleLeave = () => {
-        if (recordingState === 'recording') stopRecording();
-        stopMedia();
-        closeConnection();
-        leaveRoom();
-        startTransition(() => {
-            navigate('/home');
-        });
+    const handleLeave = async () => {
+        if (isGuest) {
+            stopMedia();
+            closeConnection();
+            leaveRoom();
+            startTransition(() => {
+                navigate('/');
+            });
+            return;
+        }
+
+        // Host flow: Auto-save recording if unsaved, then terminate room
+        setIsTerminating(true);
+
+        try {
+            if (hasUnsavedRecording || recordingState === 'recording' || (blob && blob.size > 0)) {
+                setTerminatingMessage("Finalizing & auto-saving studio recording to cloud...");
+                
+                // Stop recording if active and get final blob
+                const finalBlob = await stopAndGetBlob();
+                
+                if (finalBlob && finalBlob.size > 0) {
+                    setTerminatingMessage("Uploading recording to your cloud library...");
+                    setIsUploading(true);
+                    const duration = elapsedSeconds || elapsedTime.split(':').reduce((acc, time) => (60 * acc) + +time, 0) || 1;
+                    
+                    try {
+                        await uploadRecording(
+                            finalBlob,
+                            `Auto-Saved Session - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
+                            duration,
+                            id,
+                            (percent) => setUploadProgress(percent)
+                        );
+                        markAsSaved();
+                        addToast("Recording auto-saved to cloud library!", "success");
+                    } catch (uploadErr) {
+                        console.error("Auto-upload failed on leave:", uploadErr);
+                        addToast("Could not auto-save recording to cloud.", "error");
+                    } finally {
+                        setIsUploading(false);
+                    }
+                }
+            }
+
+            setTerminatingMessage("Terminating studio session...");
+            
+            // Terminate room on backend & broadcast to participants
+            endRoomByHost();
+            try {
+                await API.patch(`/rooms/${id}/end`);
+            } catch (endErr) {
+                console.warn("Could not patch room end:", endErr);
+            }
+        } catch (err) {
+            console.error("Error during studio leave:", err);
+        } finally {
+            stopMedia();
+            closeConnection();
+            leaveRoom();
+            setIsTerminating(false);
+            startTransition(() => {
+                navigate('/home');
+            });
+        }
     };
 
     const toggleLayout = () => {
@@ -137,7 +240,7 @@ export function Rooms() {
         addToast(`Switched to ${layoutMode === "split" ? "Picture-in-Picture" : "Side-by-Side"} layout`, "info");
     };
 
-    if (isLoading) {
+    if (isLoading && !isGuest) {
         return (
             <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
                 <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
@@ -148,7 +251,7 @@ export function Rooms() {
         );
     }
 
-    if (isError) {
+    if (isError && !isGuest) {
         return (
             <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
                 <div style={{ textAlign: "center", maxWidth: "420px", padding: "32px", borderRadius: "16px", background: "var(--color-surface-card)", border: "1px solid rgba(239, 68, 68, 0.4)" }}>
@@ -191,11 +294,26 @@ export function Rooms() {
         );
     }
 
-    const hostName = user?.name || "Host";
+    const hostName = isGuest ? (sessionStorage.getItem('podstudio_guest_room') ? 'Guest' : 'Guest') : (user?.name || "Host");
     const hostInitial = hostName.charAt(0).toUpperCase();
 
     return (
         <div className="studio-shell">
+            {/* Guest Info Banner */}
+            {isGuest && (
+                <motion.div
+                    className="guest-info-banner"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.2 }}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                    </svg>
+                    <span>You're joining as a guest — only the host can record this session.</span>
+                </motion.div>
+            )}
+
             {/* Top Studio Header Bar */}
             <motion.header 
                 className="studio-header-bar"
@@ -275,7 +393,7 @@ export function Rooms() {
             {/* Video Stage Layout */}
             <main className="studio-stage">
                 <div className={`stage-grid ${remoteStream ? `layout-${layoutMode}` : 'layout-solo'}`}>
-                    {/* Local User Stream Card */}
+                    {/* Local User Stream Card — fills the stage when alone */}
                     <div className={`studio-video-card local-stream-card ${isAudioEnabled ? 'speaking' : ''}`}>
                         <VideoPlayer 
                             stream={stream} 
@@ -286,10 +404,25 @@ export function Rooms() {
                             isHost={true}
                             avatarLetter={hostInitial}
                         />
+
+                        {/* Subtle Floating Waiting Pill when alone in the room */}
+                        {!remoteStream && (
+                            <div className="solo-waiting-pill">
+                                <span className="live-indicator-dot" />
+                                <span>Waiting for guest to join</span>
+                                <button 
+                                    type="button" 
+                                    className="solo-copy-link-btn"
+                                    onClick={handleCopyInvite}
+                                >
+                                    {copied ? "Copied!" : "Copy Link"}
+                                </button>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Remote Guest Stream or Waiting Lobby */}
-                    {remoteStream ? (
+                    {/* Remote Guest Stream — only rendered once a peer joins */}
+                    {remoteStream && (
                         <div className="studio-video-card remote-stream-card speaking">
                             <VideoPlayer 
                                 stream={remoteStream} 
@@ -301,40 +434,6 @@ export function Rooms() {
                                 avatarLetter="G"
                             />
                         </div>
-                    ) : (
-                        <motion.div 
-                            className="studio-waiting-lobby"
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.4 }}
-                        >
-                            <div className="radar-ring-wrap">
-                                <div className="radar-ring ring-1" />
-                                <div className="radar-ring ring-2" />
-                                <div className="radar-ring ring-3" />
-                                <div className="radar-center-icon">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            <h3 className="waiting-title">Waiting for Guest to Join</h3>
-                            <p className="waiting-desc">
-                                Share the private studio link below. Your guest will connect directly with local crystal-clear recording.
-                            </p>
-
-                            <div className="invite-share-box">
-                                <span className="invite-url-text">{window.location.href}</span>
-                                <button 
-                                    type="button" 
-                                    className="invite-copy-btn"
-                                    onClick={handleCopyInvite}
-                                >
-                                    {copied ? "Copied!" : "Copy Link"}
-                                </button>
-                            </div>
-                        </motion.div>
                     )}
                 </div>
             </main>
@@ -385,8 +484,8 @@ export function Rooms() {
 
                 <div className="dock-divider" />
 
-                {/* Centerpiece Recording Button */}
-                {recordingState === 'idle' && (
+                {/* Centerpiece Recording Button — hidden for guests */}
+                {!isGuest && recordingState === 'idle' && (
                     <button 
                         type="button"
                         onClick={startRecording} 
@@ -399,7 +498,7 @@ export function Rooms() {
                     </button>
                 )}
 
-                {recordingState === 'recording' && (
+                {!isGuest && recordingState === 'recording' && (
                     <button 
                         type="button"
                         onClick={stopRecording} 
@@ -412,7 +511,7 @@ export function Rooms() {
                     </button>
                 )}
 
-                {recordingState === 'stopped' && (
+                {!isGuest && recordingState === 'stopped' && (
                     <button 
                         type="button"
                         onClick={resetRecording} 
@@ -459,9 +558,9 @@ export function Rooms() {
                 </button>
             </motion.div>
 
-            {/* Post-Recording Action Hub Bar with AnimatePresence */}
+            {/* Post-Recording Action Hub Bar with AnimatePresence — hidden for guests */}
             <AnimatePresence>
-                {recordingState === 'stopped' && downloadUrl && !isUploading && (
+                {!isGuest && recordingState === 'stopped' && downloadUrl && !isUploading && (
                     <motion.div 
                         className="recording-actions-bar"
                         initial={{ y: 20, opacity: 0 }}
@@ -563,6 +662,79 @@ export function Rooms() {
                             <p className="mono" style={{ color: "var(--color-text-secondary)", fontSize: "0.74rem" }}>
                                 {uploadProgress === 100 ? "Finalizing media package..." : `${uploadProgress}% uploaded to storage`}
                             </p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Host Leave Auto-Save & Termination Progress Modal */}
+            <AnimatePresence>
+                {isTerminating && (
+                    <motion.div 
+                        className="upload-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ zIndex: 9999 }}
+                    >
+                        <motion.div 
+                            className="upload-modal-card"
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                        >
+                            <div className="spinner" style={{ width: "42px", height: "42px", borderWidth: "3px", borderColor: "rgba(64, 138, 113, 0.2)", borderTopColor: "#408a71", margin: "0 auto 16px" }} />
+                            <h3 style={{ fontFamily: "var(--font-display)", color: "#ffffff", fontSize: "1.35rem", margin: "0 0 8px" }}>
+                                Ending Studio Session
+                            </h3>
+                            <p style={{ color: "var(--color-text-secondary)", fontSize: "0.86rem", margin: "0 0 16px" }}>
+                                {terminatingMessage || "Closing studio and saving session..."}
+                            </p>
+                            {isUploading && (
+                                <div style={{ width: "100%", background: "rgba(255,255,255,0.06)", borderRadius: "999px", height: "6px", overflow: "hidden", marginBottom: "12px" }}>
+                                    <div style={{ width: `${uploadProgress}%`, background: "#408a71", height: "100%", transition: "width 0.3s ease" }} />
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Room Ended Overlay for Guests & Participants */}
+            <AnimatePresence>
+                {roomEnded.ended && !isTerminating && (
+                    <motion.div 
+                        className="upload-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ zIndex: 9998 }}
+                    >
+                        <motion.div 
+                            className="upload-modal-card"
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                        >
+                            <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", display: "grid", placeItems: "center", margin: "0 auto 16px", color: "#fca5a5" }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                                </svg>
+                            </div>
+                            <h3 style={{ fontFamily: "var(--font-display)", color: "#ffffff", fontSize: "1.35rem", margin: "0 0 8px" }}>
+                                Studio Session Ended
+                            </h3>
+                            <p style={{ color: "var(--color-text-secondary)", fontSize: "0.86rem", margin: "0 0 20px" }}>
+                                {roomEnded.reason || "The host has left and ended the studio session."}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => navigate(isGuest ? '/' : '/home')}
+                                className="floating-cta"
+                                style={{ width: "100%" }}
+                            >
+                                {isGuest ? "Return to Home" : "Return to Dashboard"}
+                            </button>
                         </motion.div>
                     </motion.div>
                 )}

@@ -1,56 +1,104 @@
-import { useEffect, useState } from 'react';
-import { socket } from '../services/socket';
+import { useEffect, useState, useRef } from 'react';
+import { Socket } from 'socket.io-client';
+import { createSocket } from '../services/socket';
 
-export function useSocket(roomId: string | undefined) {
+/**
+ * Manages a Socket.IO connection for a room with auth token support.
+ * Creates a fresh socket per mount with the provided token in the
+ * handshake auth payload, which the server validates on join-room.
+ */
+export function useSocket(roomId: string | undefined, token?: string | null) {
     const [isConnected, setIsConnected] = useState(false);
     const [usersInRoom, setUsersInRoom] = useState<string[]>([]);
     const [hasExistingUsers, setHasExistingUsers] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
+    const [roomEnded, setRoomEnded] = useState<{ ended: boolean; reason?: string }>({ ended: false });
+    const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
+    const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
         if (!roomId) return;
 
-        socket.connect();
-        socket.emit('join-room', roomId);
+        // Create a new socket with the auth token
+        const sock = createSocket(token);
+        socketRef.current = sock;
+        setSocketInstance(sock);
 
-        socket.on('connect', () => {
-            console.log('✅ Socket connected:', socket.id);
+        sock.connect();
+        sock.emit('join-room', roomId);
+
+        sock.on('connect', () => {
+            console.log('✅ Socket connected:', sock.id);
             setIsConnected(true);
+            setAuthError(null);
         });
 
-        socket.on('disconnect', () => {
+        sock.on('disconnect', () => {
             console.log('❌ Socket disconnected');
             setIsConnected(false);
         });
 
-        socket.on('room-users', (users: string[]) => {
+        sock.on('auth-error', (data: { message: string }) => {
+            console.error('🚫 Socket auth error:', data.message);
+            setAuthError(data.message);
+        });
+
+        sock.on('room-ended', (data: { reason?: string; message?: string }) => {
+            console.warn('⚠️ Room ended event received:', data);
+            setRoomEnded({
+                ended: true,
+                reason: data.reason || data.message || 'The studio session has ended.',
+            });
+        });
+
+        sock.on('room-users', (users: string[]) => {
             console.log('Other users in room:', users);
             setUsersInRoom(users);
             if (users.length > 0) setHasExistingUsers(true);
         });
 
-        socket.on('user-joined', (socketId: string) => {
+        sock.on('user-joined', (socketId: string) => {
             console.log('User joined:', socketId);
             setUsersInRoom((prev) => [...prev, socketId]);
         });
 
-        socket.on('user-left', (socketId: string) => {
+        sock.on('user-left', (socketId: string) => {
             console.log('User left:', socketId);
             setUsersInRoom((prev) => prev.filter((id) => id !== socketId));
         });
 
         return () => {
-            socket.off('connect');
-            socket.off('disconnect');
-            socket.off('room-users');
-            socket.off('user-joined');
-            socket.off('user-left');
-            socket.disconnect();
+            sock.off('connect');
+            sock.off('disconnect');
+            sock.off('auth-error');
+            sock.off('room-ended');
+            sock.off('room-users');
+            sock.off('user-joined');
+            sock.off('user-left');
+            sock.disconnect();
+            socketRef.current = null;
+            setSocketInstance(null);
         };
-    }, [roomId]);
+    }, [roomId, token]);
 
     const leaveRoom = () => {
-        socket.disconnect();
+        socketRef.current?.disconnect();
     };
 
-    return { isConnected, usersInRoom, hasExistingUsers, socket, leaveRoom };
+    const endRoomByHost = () => {
+        if (socketRef.current && roomId) {
+            socketRef.current.emit('end-room', { roomId });
+        }
+    };
+
+    return {
+        isConnected,
+        usersInRoom,
+        hasExistingUsers,
+        authError,
+        roomEnded,
+        socket: socketInstance,
+        leaveRoom,
+        endRoomByHost,
+    };
 }

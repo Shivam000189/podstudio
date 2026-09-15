@@ -64,8 +64,18 @@ model Room {
   @@index([createdBy])
 }
 
+model RoomOtp {
+  id        String   @id @default(uuid())
+  roomCode  String
+  email     String
+  otpHash   String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
 
-
-
+  @@unique([roomCode, email])
+  @@index([roomCode, email])
+  @@index([expiresAt])
+}
 
 

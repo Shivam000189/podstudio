@@ -6,6 +6,7 @@ import Signup from './pages/Signup';
 import Landing from './pages/landing';
 import { Home } from './pages/Home';
 import { Rooms } from './pages/Room';
+import { GuestRoom } from './pages/GuestRoom';
 import { Dashboard } from './pages/Dashboard';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -21,6 +22,7 @@ function App() {
           <Route path='/login' element={<Login />} />
           <Route path='/register' element={<Signup />} />
           <Route path='/sso-callback' element={<AuthenticateWithRedirectCallback signUpForceRedirectUrl="/home" signInForceRedirectUrl="/home" />} />
+          <Route path='/join/:id' element={<GuestRoom />} />
 
           {/* Protected Routes */}
           <Route 

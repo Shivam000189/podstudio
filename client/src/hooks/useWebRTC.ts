@@ -4,7 +4,7 @@ import { Socket } from 'socket.io-client';
 export function useWebRTC(
   localStream: MediaStream | null,
   roomId: string | undefined,
-  socket: Socket,
+  socket: Socket | null,
   hasExistingUsers: boolean
 ) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -20,7 +20,7 @@ export function useWebRTC(
     });
 
     pc.onicecandidate = (event) => {
-      if (event.candidate && roomId) {
+      if (event.candidate && roomId && socket) {
         socket.emit('ice-candidate', { roomId, candidate: event.candidate });
       }
     };
@@ -44,7 +44,7 @@ export function useWebRTC(
 
   // Set up signaling listeners IMMEDIATELY (don't wait for localStream)
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !socket) return;
 
     const handleOffer = async (payload: { roomId: string; sdp: RTCSessionDescriptionInit }) => {
       console.log('📩 Received offer');
@@ -97,7 +97,7 @@ export function useWebRTC(
 
   // Helper to process an offer
   const processOffer = async (sdp: RTCSessionDescriptionInit) => {
-    if (!localStream) return;
+    if (!localStream || !socket) return;
     
     const pc = createPeerConnection();
     peerConnection.current = pc;
@@ -116,7 +116,7 @@ export function useWebRTC(
 
   // NEW USER: Create offer when we detect existing users
   useEffect(() => {
-    if (!localStream || !roomId || !hasExistingUsers) return;
+    if (!localStream || !roomId || !socket || !hasExistingUsers) return;
     if (hasCreatedOffer.current) return; // Prevent duplicate offers
     if (peerConnection.current) return; // Already connected
 
