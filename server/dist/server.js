@@ -244,9 +244,9 @@ exports.io.on('connection', (socket) => {
             roomUsers.get(roomId).add(socket.id);
             // Tell everyone else in the room that a new user joined
             socket.to(roomId).emit('user-joined', socket.id);
-            // Tell the new user how many others are already there
+            // Tell the new user how many others are already there and their host role
             const otherUsers = Array.from(roomUsers.get(roomId)).filter(id => id !== socket.id);
-            socket.emit('room-users', otherUsers);
+            socket.emit('room-users', { otherUsers, isHost });
         }
         catch (err) {
             console.error('Error during room join:', err);

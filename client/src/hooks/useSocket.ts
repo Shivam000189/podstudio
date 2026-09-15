@@ -11,6 +11,7 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
     const [isConnected, setIsConnected] = useState(false);
     const [usersInRoom, setUsersInRoom] = useState<string[]>([]);
     const [hasExistingUsers, setHasExistingUsers] = useState(false);
+    const [isHost, setIsHost] = useState(false);
     const [authError, setAuthError] = useState<string | null>(null);
     const [roomEnded, setRoomEnded] = useState<{ ended: boolean; reason?: string }>({ ended: false });
     const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
@@ -51,10 +52,19 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
             });
         });
 
-        sock.on('room-users', (users: string[]) => {
-            console.log('Other users in room:', users);
-            setUsersInRoom(users);
-            if (users.length > 0) setHasExistingUsers(true);
+        sock.on('room-users', (payload: string[] | { otherUsers: string[]; isHost?: boolean }) => {
+            console.log('Room users received:', payload);
+            if (Array.isArray(payload)) {
+                setUsersInRoom(payload);
+                if (payload.length > 0) setHasExistingUsers(true);
+            } else if (payload && typeof payload === 'object') {
+                const users = payload.otherUsers || [];
+                setUsersInRoom(users);
+                if (users.length > 0) setHasExistingUsers(true);
+                if (typeof payload.isHost === 'boolean') {
+                    setIsHost(payload.isHost);
+                }
+            }
         });
 
         sock.on('user-joined', (socketId: string) => {
@@ -95,6 +105,7 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
         isConnected,
         usersInRoom,
         hasExistingUsers,
+        isHost,
         authError,
         roomEnded,
         socket: socketInstance,

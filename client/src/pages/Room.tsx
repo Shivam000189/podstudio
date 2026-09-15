@@ -73,7 +73,8 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         stopMedia 
     } = useMedia();
     
-    const { usersInRoom, socket, leaveRoom, roomEnded, endRoomByHost } = useSocket(id, socketToken);
+    const { usersInRoom, isHost, socket, leaveRoom, roomEnded, endRoomByHost } = useSocket(id, socketToken);
+    const effectiveIsHost = !isGuest && isHost;
     const { remoteStreams, closeConnection } = useWebRTC(stream, id, socket, usersInRoom);
     
     const remoteMediaStreams = useMemo(() => remoteStreams.map((r) => r.stream), [remoteStreams]);
@@ -103,7 +104,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
     // Warn host if trying to close tab or reload with unsaved recording
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            if (!isGuest && (recordingState === 'recording' || hasUnsavedRecording)) {
+            if (effectiveIsHost && (recordingState === 'recording' || hasUnsavedRecording)) {
                 e.preventDefault();
                 e.returnValue = "You have an active or unsaved studio recording. Leaving will discard it.";
                 return e.returnValue;
@@ -112,7 +113,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
 
         window.addEventListener("beforeunload", handleBeforeUnload);
         return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-    }, [isGuest, recordingState, hasUnsavedRecording]);
+    }, [effectiveIsHost, recordingState, hasUnsavedRecording]);
 
     // For authenticated users, call the join API. Guests already verified via OTP.
     const { isLoading, isError } = useQuery({
@@ -171,12 +172,12 @@ export function Rooms({ isGuest = false }: RoomsProps) {
     };
 
     const handleLeave = async () => {
-        if (isGuest) {
+        if (!effectiveIsHost) {
             stopMedia();
             closeConnection();
             leaveRoom();
             startTransition(() => {
-                navigate('/');
+                navigate(isGuest ? '/' : '/home');
             });
             return;
         }
@@ -296,8 +297,18 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         );
     }
 
-    const hostName = isGuest ? (sessionStorage.getItem('podstudio_guest_room') ? 'Guest' : 'Guest') : (user?.name || "Host");
+    const hostName = effectiveIsHost 
+        ? (user?.name || "Host") 
+        : isGuest 
+        ? "Guest" 
+        : (user?.name || "Participant");
     const hostInitial = hostName.charAt(0).toUpperCase();
+
+    const localLabel = effectiveIsHost
+        ? `${user?.name || 'Host'} (Host, You)`
+        : isGuest
+        ? "Guest (You)"
+        : `${user?.name || 'Participant'} (You)`;
 
     return (
         <div className="studio-shell">
@@ -400,10 +411,10 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                         <VideoPlayer 
                             stream={stream} 
                             muted={true} 
-                            label={`${hostName} (You)`}
+                            label={localLabel}
                             isVideoEnabled={isVideoEnabled}
                             isAudioEnabled={isAudioEnabled}
-                            isHost={!isGuest}
+                            isHost={effectiveIsHost}
                             avatarLetter={hostInitial}
                         />
 
@@ -424,19 +435,30 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                     </div>
 
                     {/* Remote Guest Streams — rendered for all joined peers */}
-                    {remoteStreams.map((peer, index) => (
-                        <div key={peer.peerId} className="studio-video-card remote-stream-card speaking">
-                            <VideoPlayer 
-                                stream={peer.stream} 
-                                muted={false} 
-                                label={remoteStreams.length > 1 ? `Participant ${index + 1}` : "Guest • Co-Host"}
-                                isVideoEnabled={true}
-                                isAudioEnabled={true}
-                                isHost={false}
-                                avatarLetter={`G${index > 0 ? index + 1 : ''}`}
-                            />
-                        </div>
-                    ))}
+                    {remoteStreams.map((peer, index) => {
+                        const isSingleRemote = remoteStreams.length === 1;
+                        const remoteIsHost = !effectiveIsHost && isSingleRemote;
+                        const remoteLabel = isSingleRemote 
+                            ? (effectiveIsHost ? "Guest • Co-Host" : "Host")
+                            : `Participant ${index + 1}`;
+                        const remoteAvatarLetter = isSingleRemote
+                            ? (effectiveIsHost ? "G" : "H")
+                            : `P${index + 1}`;
+
+                        return (
+                            <div key={peer.peerId} className="studio-video-card remote-stream-card speaking">
+                                <VideoPlayer 
+                                    stream={peer.stream} 
+                                    muted={false} 
+                                    label={remoteLabel}
+                                    isVideoEnabled={true}
+                                    isAudioEnabled={true}
+                                    isHost={remoteIsHost}
+                                    avatarLetter={remoteAvatarLetter}
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             </main>
 
@@ -486,8 +508,8 @@ export function Rooms({ isGuest = false }: RoomsProps) {
 
                 <div className="dock-divider" />
 
-                {/* Centerpiece Recording Button — hidden for guests */}
-                {!isGuest && recordingState === 'idle' && (
+                {/* Centerpiece Recording Button — only visible to host */}
+                {effectiveIsHost && recordingState === 'idle' && (
                     <button 
                         type="button"
                         onClick={startRecording} 
@@ -500,7 +522,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                     </button>
                 )}
 
-                {!isGuest && recordingState === 'recording' && (
+                {effectiveIsHost && recordingState === 'recording' && (
                     <button 
                         type="button"
                         onClick={stopRecording} 
@@ -513,7 +535,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                     </button>
                 )}
 
-                {!isGuest && recordingState === 'stopped' && (
+                {effectiveIsHost && recordingState === 'stopped' && (
                     <button 
                         type="button"
                         onClick={resetRecording} 
@@ -560,9 +582,9 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                 </button>
             </motion.div>
 
-            {/* Post-Recording Action Hub Bar with AnimatePresence — hidden for guests */}
+            {/* Post-Recording Action Hub Bar with AnimatePresence — only visible to host */}
             <AnimatePresence>
-                {!isGuest && recordingState === 'stopped' && downloadUrl && !isUploading && (
+                {effectiveIsHost && recordingState === 'stopped' && downloadUrl && !isUploading && (
                     <motion.div 
                         className="recording-actions-bar"
                         initial={{ y: 20, opacity: 0 }}

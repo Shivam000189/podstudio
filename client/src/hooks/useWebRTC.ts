@@ -24,8 +24,32 @@ export function useWebRTC(
       peerConnections.current.delete(peerId);
     }
 
+    const iceServers: RTCIceServer[] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' }
+    ];
+
+    const turnUrl = import.meta.env.VITE_TURN_URL;
+    const turnUsername = import.meta.env.VITE_TURN_USERNAME;
+    const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL;
+
+    if (turnUrl) {
+      const urls = turnUrl.includes(',') 
+        ? turnUrl.split(',').map((u: string) => u.trim()) 
+        : turnUrl;
+
+      iceServers.push({
+        urls,
+        ...(turnUsername ? { username: turnUsername } : {}),
+        ...(turnCredential ? { credential: turnCredential } : {}),
+      });
+    }
+
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      iceServers,
+      iceCandidatePoolSize: 10
     });
 
     // Attach local stream tracks immediately if available
