@@ -351,6 +351,28 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         );
     }
 
+    if (mediaError) {
+        return (
+            <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
+                <div style={{ textAlign: "center", maxWidth: "440px", padding: "32px", borderRadius: "24px", background: "rgba(26, 25, 83, 0.7)", border: "1px solid rgba(239, 68, 68, 0.4)", backdropFilter: "blur(20px)" }}>
+                    <div style={{ width: "54px", height: "54px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.4)", display: "grid", placeItems: "center", margin: "0 auto 16px", color: "#fca5a5" }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3z" />
+                            <path d="M19 10v2c0 3.87-3.13 7-7 7s-7-3.13-7-7v-2H3v2c0 4.63 3.5 8.44 8 8.94V23h2v-2.06c4.5-.5 8-4.31 8-8.94v-2h-2z" />
+                        </svg>
+                    </div>
+                    <h2 style={{ fontFamily: "var(--font-display)", color: "#ffffff", fontSize: "1.4rem", margin: "0 0 8px" }}>Hardware Access Required</h2>
+                    <p style={{ color: "var(--color-text-secondary)", fontSize: "0.88rem", marginBottom: "24px" }}>
+                        {mediaError}. Please allow camera and microphone access in your browser settings to connect to the studio session.
+                    </p>
+                    <button onClick={() => window.location.reload()} className="floating-cta" style={{ width: "100%" }}>
+                        Grant Access & Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     if ((isLoading && !isGuest) || (isWaitingForAuth && !socketToken)) {
         return (
             <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
@@ -379,28 +401,6 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                     </p>
                     <button onClick={() => navigate('/home')} className="floating-cta" style={{ width: "100%" }}>
                         Return to Dashboard
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    if (mediaError) {
-        return (
-            <div className="studio-shell" style={{ display: "grid", placeItems: "center" }}>
-                <div style={{ textAlign: "center", maxWidth: "440px", padding: "32px", borderRadius: "24px", background: "rgba(26, 25, 83, 0.7)", border: "1px solid rgba(239, 68, 68, 0.4)", backdropFilter: "blur(20px)" }}>
-                    <div style={{ width: "54px", height: "54px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.4)", display: "grid", placeItems: "center", margin: "0 auto 16px", color: "#fca5a5" }}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3z" />
-                            <path d="M19 10v2c0 3.87-3.13 7-7 7s-7-3.13-7-7v-2H3v2c0 4.63 3.5 8.44 8 8.94V23h2v-2.06c4.5-.5 8-4.31 8-8.94v-2h-2z" />
-                        </svg>
-                    </div>
-                    <h2 style={{ fontFamily: "var(--font-display)", color: "#ffffff", fontSize: "1.4rem", margin: "0 0 8px" }}>Hardware Access Required</h2>
-                    <p style={{ color: "var(--color-text-secondary)", fontSize: "0.88rem", marginBottom: "24px" }}>
-                        {mediaError}
-                    </p>
-                    <button onClick={() => window.location.reload()} className="floating-cta" style={{ width: "100%" }}>
-                        Grant Access & Retry
                     </button>
                 </div>
             </div>

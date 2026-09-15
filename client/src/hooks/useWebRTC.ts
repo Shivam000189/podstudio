@@ -16,6 +16,22 @@ export function useWebRTC(
   
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const pendingOffers = useRef<Map<string, RTCSessionDescriptionInit>>(new Map());
+  const pendingIceCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+
+  const flushPendingIceCandidates = useCallback(async (peerId: string, pc: RTCPeerConnection) => {
+    const candidates = pendingIceCandidates.current.get(peerId);
+    if (candidates && candidates.length > 0) {
+      console.log(`🧊 Flushing ${candidates.length} queued ICE candidate(s) for ${peerId}`);
+      for (const candidate of candidates) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.error(`Error applying queued ICE candidate for ${peerId}:`, err);
+        }
+      }
+      pendingIceCandidates.current.delete(peerId);
+    }
+  }, []);
 
   const createPeerConnection = useCallback((peerId: string) => {
     // If existing pc for this peer, close it first
@@ -99,6 +115,8 @@ export function useWebRTC(
 
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      await flushPendingIceCandidates(peerId, pc);
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -106,7 +124,7 @@ export function useWebRTC(
     } catch (err) {
       console.error(`Error processing offer from ${peerId}:`, err);
     }
-  }, [localStream, socket, roomId, createPeerConnection]);
+  }, [localStream, socket, roomId, createPeerConnection, flushPendingIceCandidates]);
 
   // Set up signaling listeners
   useEffect(() => {
@@ -134,6 +152,7 @@ export function useWebRTC(
       if (pc) {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          await flushPendingIceCandidates(peerId, pc);
         } catch (err) {
           console.error(`Error setting remote description for ${peerId}:`, err);
         }
@@ -142,7 +161,7 @@ export function useWebRTC(
 
     const handleIceCandidate = async (payload: { from: string; candidate: RTCIceCandidateInit }) => {
       const peerId = payload.from;
-      if (!peerId) return;
+      if (!peerId || !payload.candidate) return;
       const pc = peerConnections.current.get(peerId);
       if (pc && pc.remoteDescription) {
         try {
@@ -150,6 +169,12 @@ export function useWebRTC(
         } catch (err) {
           console.error(`Error adding ICE candidate from ${peerId}:`, err);
         }
+      } else {
+        console.log(`🧊 Queueing early ICE candidate for peer ${peerId}`);
+        if (!pendingIceCandidates.current.has(peerId)) {
+          pendingIceCandidates.current.set(peerId, []);
+        }
+        pendingIceCandidates.current.get(peerId)!.push(payload.candidate);
       }
     };
 
@@ -160,6 +185,7 @@ export function useWebRTC(
         peerConnections.current.delete(peerId);
       }
       pendingOffers.current.delete(peerId);
+      pendingIceCandidates.current.delete(peerId);
       setRemoteStreams((prev) => {
         if (!prev.has(peerId)) return prev;
         const next = new Map(prev);
@@ -218,6 +244,7 @@ export function useWebRTC(
     peerConnections.current.forEach((pc) => pc.close());
     peerConnections.current.clear();
     pendingOffers.current.clear();
+    pendingIceCandidates.current.clear();
     setRemoteStreams(new Map());
   }, []);
 
