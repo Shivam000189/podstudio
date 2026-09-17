@@ -21,7 +21,7 @@ function App() {
           <Route path='/' element={<Landing />} />
           <Route path='/login' element={<Login />} />
           <Route path='/register' element={<Signup />} />
-          <Route path='/sso-callback' element={<AuthenticateWithRedirectCallback signUpForceRedirectUrl="/home" signInForceRedirectUrl="/home" />} />
+          <Route path='/sso-callback' element={<AuthenticateWithRedirectCallback signUpForceRedirectUrl="/" signInForceRedirectUrl="/" />} />
           <Route path='/join/:id' element={<GuestRoom />} />
 
           {/* Protected Routes */}
