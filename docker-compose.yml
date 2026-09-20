@@ -34,6 +34,7 @@ services:
       - PORT=4000
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/podstudio?schema=public
       - JWT_SECRET=production-secret-change-in-real-deployment-32-chars
+      - GUEST_JWT_SECRET=guest-production-secret-change-in-real-deployment-32-chars
       - CLIENT_URL=http://localhost:5173,http://localhost:3000
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}

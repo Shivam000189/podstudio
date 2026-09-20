@@ -16,6 +16,8 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: GUEST_JWT_SECRET
+        generateValue: true
       - key: CLIENT_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
@@ -27,4 +29,14 @@ services:
       - key: CLERK_PUBLISHABLE_KEY
         sync: false
       - key: CLERK_SECRET_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
         sync: false

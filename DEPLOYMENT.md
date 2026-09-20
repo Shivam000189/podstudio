@@ -53,12 +53,18 @@ This guide provides step-by-step instructions to deploy PodStudio to production.
    PORT=10000
    DATABASE_URL=postgresql://username:password@your-db-host/dbname?sslmode=require
    JWT_SECRET=generate_a_secure_32_character_random_string
+   GUEST_JWT_SECRET=generate_another_secure_32_character_random_string
    CLIENT_URL=https://your-frontend-domain.vercel.app
    CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
    CLOUDINARY_API_KEY=your_cloudinary_api_key
    CLOUDINARY_API_SECRET=your_cloudinary_api_secret
    CLERK_PUBLISHABLE_KEY=pk_test_... (optional)
    CLERK_SECRET_KEY=sk_test_... (optional)
+   SMTP_HOST=smtp.sendgrid.net (optional, for guest OTP email delivery)
+   SMTP_PORT=587
+   SMTP_USER=apikey
+   SMTP_PASS=your_smtp_password
+   SMTP_FROM=PodStudio <noreply@yourdomain.com>
    ```
 6. Click **Deploy Web Service**.
 7. Once deployed, run the Prisma migration on Render (via Render Shell or locally pointing `DATABASE_URL`):
