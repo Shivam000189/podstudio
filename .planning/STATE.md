@@ -14,9 +14,9 @@
 | :--- | :--- |
 | **Active Milestone** | M1: Production Hardening & Scalability |
 | **Active Phase** | Phase 1: Automated Test Suites & Quality Gates |
-| **Current Step** | Phase 0 Onboarding Complete -> Ready for `/gsd-plan-phase 1` |
-| **Codebase Health** | Clean working tree; all baseline code functional; builds pass |
-| **Test Coverage** | 0% (Manual verification only) |
+| **Current Step** | Codebase Map Refreshed -> Test Suites Active (67 tests passing) |
+| **Codebase Health** | Clean baseline; Vitest configured; all tests pass |
+| **Test Coverage** | 11 suites, 67 tests passing across client and server |
 
 ---
 
