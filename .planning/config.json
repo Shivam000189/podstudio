@@ -1,0 +1,10 @@
+{
+  "project": "PodStudio",
+  "mode": "interactive",
+  "model_profile": "balanced",
+  "created_at": "2026-09-20",
+  "workflow": {
+    "auto_advance": false,
+    "verify_gates": true
+  }
+}
