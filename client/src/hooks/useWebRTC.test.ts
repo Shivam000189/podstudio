@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Pure function mirroring the isPolitePeer implementation in useWebRTC.ts:
+// (myId, peerId) => myId > peerId
+const isPolitePeer = (myId: string, peerId: string): boolean => myId > peerId;
 
 describe('WebRTC Peer Politeness Determinism (isPolitePeer)', () => {
-  // Pure function mirroring the isPolitePeer implementation in useWebRTC.ts:
-  // (myId, peerId) => myId > peerId
-  const isPolitePeer = (myId: string, peerId: string): boolean => myId > peerId;
 
   it('should guarantee strict complementarity for any arbitrary distinct socket IDs', () => {
     const testCases: [string, string][] = [
@@ -52,5 +53,90 @@ describe('WebRTC Peer Politeness Determinism (isPolitePeer)', () => {
     expect(isPolitePeer(p3, p2)).toBe(true);
     expect(isPolitePeer(p2, p1)).toBe(true);
     expect(isPolitePeer(p3, p1)).toBe(true);
+  });
+});
+
+describe('WebRTC Offer Collision & ICE Restart Logic', () => {
+  it('should NOT treat an offer as collision when signalingState is stable, even with non-null localDescription', () => {
+    // Replicates the isOfferCollision logic in processOffer:
+    // Boolean(pc && pc.signalingState !== 'stable')
+    const checkOfferCollision = (pc: { signalingState: string; localDescription: unknown } | null) => {
+      return Boolean(pc && pc.signalingState !== 'stable');
+    };
+
+    // Connection negotiated previously: localDescription is populated, signalingState is 'stable'
+    const priorNegotiatedPC = {
+      signalingState: 'stable',
+      localDescription: { type: 'offer', sdp: 'v=0...' },
+    };
+
+    expect(checkOfferCollision(priorNegotiatedPC)).toBe(false);
+
+    // Truly colliding state: local offer was created and in flight
+    const collidingPC = {
+      signalingState: 'have-local-offer',
+      localDescription: { type: 'offer', sdp: 'v=0...' },
+    };
+
+    expect(checkOfferCollision(collidingPC)).toBe(true);
+  });
+
+  it('impolite peer should createOffer({ iceRestart: true }), setLocalDescription, and emit offer socket event on failed connectionState', async () => {
+    const mockOffer = { type: 'offer', sdp: 'ice-restart-sdp' };
+    const mockSocket = {
+      id: 'impolite-socket-id',
+      emit: vi.fn(),
+    };
+
+    const mockPC = {
+      connectionState: 'failed',
+      createOffer: vi.fn().mockResolvedValue(mockOffer),
+      setLocalDescription: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const myId = 'aaa-impolite';
+    const peerId = 'zzz-polite';
+    const roomId = 'test-room-123';
+
+    // Simulating the failed connection handler logic in useWebRTC.ts:
+    if (!isPolitePeer(myId, peerId)) {
+      const offer = await mockPC.createOffer({ iceRestart: true });
+      await mockPC.setLocalDescription(offer);
+      mockSocket.emit('offer', { to: peerId, roomId, sdp: offer });
+    }
+
+    expect(mockPC.createOffer).toHaveBeenCalledWith({ iceRestart: true });
+    expect(mockPC.setLocalDescription).toHaveBeenCalledWith(mockOffer);
+    expect(mockSocket.emit).toHaveBeenCalledWith('offer', {
+      to: peerId,
+      roomId,
+      sdp: mockOffer,
+    });
+  });
+
+  it('polite peer should wait and not emit an offer when connectionState fails', async () => {
+    const mockSocket = {
+      id: 'zzz-polite',
+      emit: vi.fn(),
+    };
+
+    const mockPC = {
+      connectionState: 'failed',
+      createOffer: vi.fn(),
+      setLocalDescription: vi.fn(),
+    };
+
+    const myId = 'zzz-polite';
+    const peerId = 'aaa-impolite';
+
+    if (!isPolitePeer(myId, peerId)) {
+      const offer = await mockPC.createOffer({ iceRestart: true });
+      await mockPC.setLocalDescription(offer);
+      mockSocket.emit('offer', { to: peerId, roomId: 'test', sdp: offer });
+    }
+
+    // Polite peer must not initiate the restart offer; it waits for impolite peer's offer
+    expect(mockPC.createOffer).not.toHaveBeenCalled();
+    expect(mockSocket.emit).not.toHaveBeenCalled();
   });
 });

@@ -140,20 +140,28 @@ export function useWebRTC(
           clearTimeout(pendingTimer);
           disconnectTimers.current.delete(peerId);
         }
-        if (!isPolitePeer(peerId) && typeof pc.restartIce === 'function') {
+        if (!isPolitePeer(peerId)) {
           console.log(`Attempting ICE restart for failed connection with ${peerId}`);
-          try {
-            pc.restartIce();
-          } catch (err) {
-            console.error(`ICE restart failed for ${peerId}:`, err);
-          }
+          (async () => {
+            try {
+              const offer = await pc.createOffer({ iceRestart: true });
+              await pc.setLocalDescription(offer);
+              socket?.emit('offer', { to: peerId, roomId, sdp: offer });
+            } catch (err) {
+              console.error(`ICE restart failed for ${peerId}:`, err);
+              setRemoteStreams((prev) => {
+                if (!prev.has(peerId)) return prev;
+                const next = new Map(prev);
+                next.delete(peerId);
+                return next;
+              });
+            }
+          })();
         } else {
-          setRemoteStreams((prev) => {
-            if (!prev.has(peerId)) return prev;
-            const next = new Map(prev);
-            next.delete(peerId);
-            return next;
-          });
+          // Polite peer just waits — the impolite peer will send a fresh
+          // ICE-restart offer, which processOffer() will now handle
+          // correctly since isOfferCollision no longer false-positives.
+          console.log(`Polite peer waiting for ICE-restart offer from ${peerId}`);
         }
       } else if (pc.connectionState === 'closed') {
         const pendingTimer = disconnectTimers.current.get(peerId);
@@ -179,7 +187,7 @@ export function useWebRTC(
 
     let pc = peerConnections.current.get(peerId);
     const isPolite = isPolitePeer(peerId);
-    const isOfferCollision = Boolean(pc && (pc.signalingState !== 'stable' || pc.localDescription !== null));
+    const isOfferCollision = Boolean(pc && pc.signalingState !== 'stable');
 
     if (pc && isOfferCollision) {
       if (!isPolite) {

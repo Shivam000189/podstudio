@@ -14,9 +14,9 @@
 | :--- | :--- |
 | **Active Milestone** | M1: Production Hardening & Scalability |
 | **Active Phase** | Phase 1: Automated Test Suites & Quality Gates |
-| **Current Step** | WebRTC Deadlock Resolution & Socket Deduplication Active (77 tests passing) |
+| **Current Step** | WebRTC Connection Recovery & Renegotiation Active (80 tests passing) |
 | **Codebase Health** | Clean baseline; Vitest configured; all tests pass; zero TS errors |
-| **Test Coverage** | 12 suites, 77 tests passing across client and server |
+| **Test Coverage** | 12 suites, 80 tests passing across client and server |
 
 ---
 
