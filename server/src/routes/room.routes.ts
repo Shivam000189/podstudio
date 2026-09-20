@@ -12,7 +12,7 @@ import {
 const router = Router();
 
 router.post("/rooms/create", authMiddleware, createRoom);
-router.get("/rooms/:id", authMiddleware, joinRoom);
+router.post("/rooms/:id/join", authMiddleware, joinRoom);
 router.patch("/rooms/:id/end", authMiddleware, endRoom);
 
 // Guest OTP flow (no authMiddleware — guests aren't logged in)

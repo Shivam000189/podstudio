@@ -77,14 +77,13 @@ export const me = async (req:AuthRequest, res:Response) => {
     });
   }
   catch (err: any) {
-  console.error(err);
+    console.error("Error fetching user profile:", err);
 
-  res.status(500).json({
-    success: false,
-    message: err.message,
-    stack: err.stack,
-  });
-}
+    res.status(500).json({
+      success: false,
+      message: err.message || "Failed to fetch user profile",
+    });
+  }
 
 }
 

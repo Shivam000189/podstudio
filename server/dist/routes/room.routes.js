@@ -6,7 +6,7 @@ const rateLimit_middleware_1 = require("../middleware/rateLimit.middleware");
 const room_controller_1 = require("../controllers/room.controller");
 const router = (0, express_1.Router)();
 router.post("/rooms/create", auth_middleware_1.authMiddleware, room_controller_1.createRoom);
-router.get("/rooms/:id", auth_middleware_1.authMiddleware, room_controller_1.joinRoom);
+router.post("/rooms/:id/join", auth_middleware_1.authMiddleware, room_controller_1.joinRoom);
 router.patch("/rooms/:id/end", auth_middleware_1.authMiddleware, room_controller_1.endRoom);
 // Guest OTP flow (no authMiddleware — guests aren't logged in)
 router.post("/rooms/:id/otp/request", rateLimit_middleware_1.otpRateLimiter, room_controller_1.requestOtp);

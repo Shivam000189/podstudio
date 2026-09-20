@@ -4,6 +4,9 @@ exports.getMe = exports.loginUser = exports.registerUser = void 0;
 const prisma_1 = require("../config/prisma");
 const hash_1 = require("../utils/hash");
 const registerUser = async (name, email, password) => {
+    if (!password || password.length < 8) {
+        throw { status: 400, message: "Password must be at least 8 characters long." };
+    }
     const existingUser = await prisma_1.prisma.user.findUnique({
         where: { email },
     });
@@ -25,15 +28,12 @@ const loginUser = async (email, password) => {
     const user = await prisma_1.prisma.user.findUnique({
         where: { email },
     });
-    if (!user) {
-        throw { status: 404, message: "No account found with this email. Please sign up first." };
-    }
-    if (!user.password) {
-        throw { status: 400, message: "This account was created with Google OAuth. Please click 'Continue with Google' to sign in." };
+    if (!user || !user.password) {
+        throw { status: 401, message: "Invalid email or password." };
     }
     const isMatch = await (0, hash_1.comparePassword)(password, user.password);
     if (!isMatch) {
-        throw { status: 400, message: "Invalid email or password. Please try again." };
+        throw { status: 401, message: "Invalid email or password." };
     }
     return user;
 };

@@ -6,12 +6,16 @@ export const registerUser = async (
   email: string,
   password: string
 ) => {
+  if (!password || password.length < 8) {
+    throw { status: 400, message: "Password must be at least 8 characters long." };
+  }
+
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
 
   if (existingUser) {
-    throw {status:409, message:"Email already exists"};
+    throw { status: 409, message: "Email already exists" };
   }
 
   const hashedPassword = await hashPassword(password);
@@ -32,18 +36,14 @@ export const loginUser = async (email: string, password: string) => {
     where: { email },
   });
 
-  if (!user) {
-    throw { status: 404, message: "No account found with this email. Please sign up first." };
-  }
-
-  if (!user.password) {
-    throw { status: 400, message: "This account was created with Google OAuth. Please click 'Continue with Google' to sign in." };
+  if (!user || !user.password) {
+    throw { status: 401, message: "Invalid email or password." };
   }
 
   const isMatch = await comparePassword(password, user.password);
 
   if (!isMatch) {
-    throw { status: 400, message: "Invalid email or password. Please try again." };
+    throw { status: 401, message: "Invalid email or password." };
   }
 
   return user;

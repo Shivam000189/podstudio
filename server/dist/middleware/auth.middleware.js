@@ -44,23 +44,21 @@ const authMiddleware = async (req, res, next) => {
                 }
             }
             catch { }
-            if (token.startsWith("user_")) {
-                const user = await getOrCreateClerkUser(token);
-                req.userId = user.id;
-                return next();
-            }
-            try {
-                const parts = token.split(".");
-                if (parts.length === 3) {
-                    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
-                    if (typeof payload.sub === "string" && payload.sub.startsWith("user_")) {
-                        const user = await getOrCreateClerkUser(payload.sub);
+            if (process.env.CLERK_SECRET_KEY || process.env.CLERK_JWT_KEY) {
+                try {
+                    const clerkPayload = await (0, express_1.verifyToken)(token, {
+                        secretKey: process.env.CLERK_SECRET_KEY,
+                        jwtKey: process.env.CLERK_JWT_KEY,
+                    });
+                    const clerkUserId = clerkPayload?.sub;
+                    if (clerkUserId) {
+                        const user = await getOrCreateClerkUser(clerkUserId);
                         req.userId = user.id;
                         return next();
                     }
                 }
+                catch { }
             }
-            catch { }
         }
         return res.status(401).json({ message: "Unauthorized - Please sign in" });
     }

@@ -18,18 +18,29 @@ export function useWebRTC(
   const pendingOffers = useRef<Map<string, RTCSessionDescriptionInit>>(new Map());
   const pendingIceCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
+  const isPolitePeer = useCallback((peerId: string) => {
+    const myId = socket?.id || '';
+    return myId.localeCompare(peerId) > 0;
+  }, [socket]);
+
   const flushPendingIceCandidates = useCallback(async (peerId: string, pc: RTCPeerConnection) => {
     const candidates = pendingIceCandidates.current.get(peerId);
     if (candidates && candidates.length > 0) {
       console.log(`Flushing ${candidates.length} queued ICE candidate(s) for ${peerId}`);
+      const remaining: RTCIceCandidateInit[] = [];
       for (const candidate of candidates) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (err) {
           console.error(`Error applying queued ICE candidate for ${peerId}:`, err);
+          remaining.push(candidate);
         }
       }
-      pendingIceCandidates.current.delete(peerId);
+      if (remaining.length > 0) {
+        pendingIceCandidates.current.set(peerId, remaining);
+      } else {
+        pendingIceCandidates.current.delete(peerId);
+      }
     }
   }, []);
 
@@ -37,6 +48,7 @@ export function useWebRTC(
     if (peerConnections.current.has(peerId)) {
       peerConnections.current.get(peerId)?.close();
       peerConnections.current.delete(peerId);
+      // Retain pendingIceCandidates for peerId so they can be applied to the replacement connection
     }
 
     const iceServers: RTCIceServer[] = [
@@ -108,7 +120,28 @@ export function useWebRTC(
   const processOffer = useCallback(async (peerId: string, sdp: RTCSessionDescriptionInit) => {
     if (!localStream || !socket) return;
 
-    const pc = createPeerConnection(peerId);
+    let pc = peerConnections.current.get(peerId);
+    const isPolite = isPolitePeer(peerId);
+    const isOfferCollision = Boolean(pc && (pc.signalingState !== 'stable' || pc.localDescription !== null));
+
+    if (pc && isOfferCollision) {
+      if (!isPolite) {
+        // Impolite peer ignores colliding offer and maintains its own in-flight offer
+        console.log(`Impolite peer ${socket.id} ignoring colliding offer from ${peerId}`);
+        return;
+      }
+
+      console.log(`Polite peer ${socket.id} yielding to colliding offer from ${peerId}`);
+      try {
+        await pc.setLocalDescription({ type: 'rollback' });
+      } catch {
+        pc = createPeerConnection(peerId);
+      }
+    }
+
+    if (!pc) {
+      pc = createPeerConnection(peerId);
+    }
 
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -121,7 +154,7 @@ export function useWebRTC(
     } catch (err) {
       console.error(`Error processing offer from ${peerId}:`, err);
     }
-  }, [localStream, socket, roomId, createPeerConnection, flushPendingIceCandidates]);
+  }, [localStream, socket, roomId, createPeerConnection, flushPendingIceCandidates, isPolitePeer]);
 
   useEffect(() => {
     if (!roomId || !socket) return;
@@ -146,11 +179,15 @@ export function useWebRTC(
       console.log(`Received answer from ${peerId}`);
       const pc = peerConnections.current.get(peerId);
       if (pc) {
-        try {
-          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-          await flushPendingIceCandidates(peerId, pc);
-        } catch (err) {
-          console.error(`Error setting remote description for ${peerId}:`, err);
+        if (pc.signalingState === 'have-local-offer') {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            await flushPendingIceCandidates(peerId, pc);
+          } catch (err) {
+            console.error(`Error setting remote description for ${peerId}:`, err);
+          }
+        } else {
+          console.warn(`Ignoring answer from ${peerId} because signalingState is ${pc.signalingState}`);
         }
       }
     };
@@ -201,7 +238,7 @@ export function useWebRTC(
       socket.off('ice-candidate', handleIceCandidate);
       socket.off('user-left', handleUserLeft);
     };
-  }, [roomId, socket, localStream, processOffer]);
+  }, [roomId, socket, localStream, processOffer, flushPendingIceCandidates]);
 
   useEffect(() => {
     if (localStream && pendingOffers.current.size > 0) {
@@ -219,8 +256,15 @@ export function useWebRTC(
     if (!localStream || !roomId || !socket || usersInRoom.length === 0) return;
 
     usersInRoom.forEach(async (peerId) => {
+      // Polite/impolite pattern: only the impolite peer initiates the offer.
+      // The polite peer waits to receive the offer from the impolite peer to prevent glare.
+      if (isPolitePeer(peerId)) {
+        console.log(`Polite peer ${socket.id} waiting for offer from ${peerId}`);
+        return;
+      }
+
       if (!peerConnections.current.has(peerId)) {
-        console.log(`Creating offer for existing peer ${peerId}`);
+        console.log(`Impolite peer ${socket.id} creating offer for ${peerId}`);
         const pc = createPeerConnection(peerId);
 
         try {
@@ -232,7 +276,7 @@ export function useWebRTC(
         }
       }
     });
-  }, [localStream, roomId, socket, usersInRoom, createPeerConnection]);
+  }, [localStream, roomId, socket, usersInRoom, createPeerConnection, isPolitePeer]);
 
   const closeConnection = useCallback(() => {
     peerConnections.current.forEach((pc) => pc.close());

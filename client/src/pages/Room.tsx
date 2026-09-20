@@ -31,7 +31,7 @@ interface RoomsProps {
 }
 
 const fetchRoom = async (roomId: string): Promise<RoomData> => {
-    const response = await API.get(`/rooms/${roomId}`);
+    const response = await API.post(`/rooms/${roomId}/join`);
     return response.data;
 };
 

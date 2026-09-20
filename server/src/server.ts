@@ -4,7 +4,7 @@ import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { clerkMiddleware } from "@clerk/express";
+import { clerkMiddleware, verifyToken as verifyClerkToken } from "@clerk/express";
 import authRoutes from './routes/auth.routes';
 import roomRoutes from './routes/room.routes';
 import recordingRoutes from './routes/recording.routes';
@@ -12,8 +12,8 @@ import { verifyGuestToken } from './utils/guestToken';
 import { verifyToken } from './utils/jwt';
 import { prisma } from './config/prisma';
 
-const app = express();
-const httpServer = createServer(app);
+export const app = express();
+export const httpServer = createServer(app);
 const PORT = process.env.PORT || 4000;
 
 app.use(express.json());
@@ -56,7 +56,11 @@ const isOriginAllowed = (origin: string | undefined): boolean => {
     return true;
   }
 
-  return envOrigins.length === 0;
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  return process.env.ALLOW_ALL_CORS_DEV === "true";
 };
 
 app.use(cors((req, callback) => {
@@ -167,30 +171,32 @@ io.on('connection', (socket) => {
             isHost = true;
           }
         } catch {
-          try {
-            const parts = token.split(".");
-            if (parts.length === 3) {
-              const payload = JSON.parse(
-                Buffer.from(parts[1], "base64url").toString("utf-8")
-              );
-              if (!payload.sub || typeof payload.sub !== "string" || !payload.sub.startsWith("user_")) {
-                throw new Error("Not a Clerk token");
-              }
-              const dbUser = await prisma.user.findFirst({
-                where: { clerk_id: payload.sub },
+          let verifiedClerkId: string | null = null;
+          if (process.env.CLERK_SECRET_KEY || process.env.CLERK_JWT_KEY) {
+            try {
+              const clerkPayload = await verifyClerkToken(token, {
+                secretKey: process.env.CLERK_SECRET_KEY,
+                jwtKey: process.env.CLERK_JWT_KEY,
               });
-              if (dbUser) {
-                participantIdentifier = dbUser.id;
-                if (room.createdBy === dbUser.id) {
-                  isHost = true;
-                }
-              } else {
-                participantIdentifier = payload.sub;
+              if (clerkPayload?.sub) {
+                verifiedClerkId = clerkPayload.sub;
+              }
+            } catch {}
+          }
+
+          if (verifiedClerkId) {
+            const dbUser = await prisma.user.findFirst({
+              where: { clerk_id: verifiedClerkId },
+            });
+            if (dbUser) {
+              participantIdentifier = dbUser.id;
+              if (room.createdBy === dbUser.id) {
+                isHost = true;
               }
             } else {
-              throw new Error("Invalid token format");
+              participantIdentifier = verifiedClerkId;
             }
-          } catch {
+          } else {
             console.warn(`Socket ${socket.id} failed auth for room ${roomId}`);
             socket.emit('auth-error', { message: 'Invalid or expired token.' });
             socket.disconnect(true);
@@ -300,9 +306,11 @@ io.on('connection', (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Server listening at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  httpServer.listen(PORT, () => {
+    console.log(`Server listening at http://localhost:${PORT}`);
+  });
+}
 
 const gracefulShutdown = () => {
   console.log('Shutting down server gracefully...');

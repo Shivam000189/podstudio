@@ -21,6 +21,7 @@ const createRecording = async (req, res) => {
             data: {
                 title: title || "Untitled Meeting",
                 videoUrl: url, // Cloudinary URL
+                publicId: publicId || null,
                 duration: parseInt(duration) || 0,
                 fileSize: file.size,
                 roomId: roomId || null,
@@ -72,13 +73,17 @@ const deleteRecording = async (req, res) => {
                 message: "Recording not found"
             });
         }
-        // Extract public_id from Cloudinary URL for deletion
-        // URL format: https://res.cloudinary.com/.../riverside-recordings/recording-xxx.webm
-        const urlParts = recording.videoUrl.split('/');
-        const filenameWithExt = urlParts[urlParts.length - 1];
-        const folder = urlParts[urlParts.length - 2];
-        const publicId = `${folder}/${filenameWithExt.split('.')[0]}`;
-        await (0, cloudinary_service_1.deleteFromCloudinary)(publicId);
+        // Use stored publicId, with fallback to parsing URL for legacy records
+        let publicId = recording.publicId;
+        if (!publicId && recording.videoUrl) {
+            const urlParts = recording.videoUrl.split('/');
+            const filenameWithExt = urlParts[urlParts.length - 1];
+            const folder = urlParts[urlParts.length - 2];
+            publicId = `${folder}/${filenameWithExt.split('.')[0]}`;
+        }
+        if (publicId) {
+            await (0, cloudinary_service_1.deleteFromCloudinary)(publicId);
+        }
         await prisma_1.prisma.recording.delete({
             where: { id },
         });

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.terminateRoomSession = exports.io = void 0;
+exports.terminateRoomSession = exports.io = exports.httpServer = exports.app = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const express_1 = __importDefault(require("express"));
@@ -17,12 +17,12 @@ const recording_routes_1 = __importDefault(require("./routes/recording.routes"))
 const guestToken_1 = require("./utils/guestToken");
 const jwt_1 = require("./utils/jwt");
 const prisma_1 = require("./config/prisma");
-const app = (0, express_1.default)();
-const httpServer = (0, http_1.createServer)(app);
+exports.app = (0, express_1.default)();
+exports.httpServer = (0, http_1.createServer)(exports.app);
 const PORT = process.env.PORT || 4000;
-app.use(express_1.default.json());
+exports.app.use(express_1.default.json());
 if (process.env.CLERK_SECRET_KEY || process.env.CLERK_PUBLISHABLE_KEY) {
-    app.use((0, express_2.clerkMiddleware)());
+    exports.app.use((0, express_2.clerkMiddleware)());
 }
 const localOrigins = [
     "http://localhost:5173",
@@ -54,19 +54,22 @@ const isOriginAllowed = (origin) => {
     if (envOrigins.includes(normalized) || envOrigins.includes("*")) {
         return true;
     }
-    return envOrigins.length === 0;
+    if (process.env.NODE_ENV === "production") {
+        return false;
+    }
+    return process.env.ALLOW_ALL_CORS_DEV === "true";
 };
-app.use((0, cors_1.default)((req, callback) => {
+exports.app.use((0, cors_1.default)((req, callback) => {
     const origin = req.header("Origin");
     if (isOriginAllowed(origin)) {
         return callback(null, { origin: true, credentials: true });
     }
     return callback(null, { origin: false, credentials: true });
 }));
-app.use(['/api/auth', '/auth'], auth_routes_1.default);
-app.use(['/api/recordings', '/recordings'], recording_routes_1.default);
-app.use(['/api', '/'], room_routes_1.default);
-app.get(['/health', '/api/health', '/api', '/'], (_req, res) => {
+exports.app.use(['/api/auth', '/auth'], auth_routes_1.default);
+exports.app.use(['/api/recordings', '/recordings'], recording_routes_1.default);
+exports.app.use(['/api', '/'], room_routes_1.default);
+exports.app.get(['/health', '/api/health', '/api', '/'], (_req, res) => {
     res.json({
         status: 'ok',
         service: 'PodStudio Recording API',
@@ -74,7 +77,7 @@ app.get(['/health', '/api/health', '/api', '/'], (_req, res) => {
         timestamp: new Date().toISOString()
     });
 });
-exports.io = new socket_io_1.Server(httpServer, {
+exports.io = new socket_io_1.Server(exports.httpServer, {
     cors: {
         origin: (origin, callback) => {
             if (isOriginAllowed(origin)) {
@@ -154,31 +157,34 @@ exports.io.on('connection', (socket) => {
                     }
                 }
                 catch {
-                    try {
-                        const parts = token.split(".");
-                        if (parts.length === 3) {
-                            const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
-                            if (!payload.sub || typeof payload.sub !== "string" || !payload.sub.startsWith("user_")) {
-                                throw new Error("Not a Clerk token");
-                            }
-                            const dbUser = await prisma_1.prisma.user.findFirst({
-                                where: { clerk_id: payload.sub },
+                    let verifiedClerkId = null;
+                    if (process.env.CLERK_SECRET_KEY || process.env.CLERK_JWT_KEY) {
+                        try {
+                            const clerkPayload = await (0, express_2.verifyToken)(token, {
+                                secretKey: process.env.CLERK_SECRET_KEY,
+                                jwtKey: process.env.CLERK_JWT_KEY,
                             });
-                            if (dbUser) {
-                                participantIdentifier = dbUser.id;
-                                if (room.createdBy === dbUser.id) {
-                                    isHost = true;
-                                }
+                            if (clerkPayload?.sub) {
+                                verifiedClerkId = clerkPayload.sub;
                             }
-                            else {
-                                participantIdentifier = payload.sub;
+                        }
+                        catch { }
+                    }
+                    if (verifiedClerkId) {
+                        const dbUser = await prisma_1.prisma.user.findFirst({
+                            where: { clerk_id: verifiedClerkId },
+                        });
+                        if (dbUser) {
+                            participantIdentifier = dbUser.id;
+                            if (room.createdBy === dbUser.id) {
+                                isHost = true;
                             }
                         }
                         else {
-                            throw new Error("Invalid token format");
+                            participantIdentifier = verifiedClerkId;
                         }
                     }
-                    catch {
+                    else {
                         console.warn(`Socket ${socket.id} failed auth for room ${roomId}`);
                         socket.emit('auth-error', { message: 'Invalid or expired token.' });
                         socket.disconnect(true);
@@ -276,12 +282,14 @@ exports.io.on('connection', (socket) => {
         });
     });
 });
-httpServer.listen(PORT, () => {
-    console.log(`Server listening at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+    exports.httpServer.listen(PORT, () => {
+        console.log(`Server listening at http://localhost:${PORT}`);
+    });
+}
 const gracefulShutdown = () => {
     console.log('Shutting down server gracefully...');
-    httpServer.close(() => {
+    exports.httpServer.close(() => {
         console.log('HTTP server closed.');
         process.exit(0);
     });

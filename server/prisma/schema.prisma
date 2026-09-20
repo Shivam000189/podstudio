@@ -36,6 +36,7 @@ model Recording {
   id        String   @id @default(uuid())
   title     String   @default("Untitled Meeting")
   videoUrl  String
+  publicId  String?
   duration  Int      @default(0) // in seconds
   fileSize  Int      @default(0) // in bytes
   thumbnail String?  // optional, for later

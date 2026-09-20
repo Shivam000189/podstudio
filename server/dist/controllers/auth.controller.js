@@ -102,11 +102,10 @@ const me = async (req, res) => {
         });
     }
     catch (err) {
-        console.error(err);
+        console.error("Error fetching user profile:", err);
         res.status(500).json({
             success: false,
-            message: err.message,
-            stack: err.stack,
+            message: err.message || "Failed to fetch user profile",
         });
     }
 };
