@@ -1,8 +1,8 @@
 # Code Conventions & Style Guide
 
 **Project:** PodStudio  
-**Scope:** Frontend and Backend conventions, coding standards, error handling, and styling  
-**Generated Date:** 2026-09-20  
+**Scope:** Frontend and Backend conventions, coding standards, error handling, styling, and testing  
+**Generated Date:** 2026-09-20 (Refreshed)  
 
 ---
 
@@ -48,3 +48,12 @@
 - **CSS Architecture:** Hybrid approach combining Tailwind CSS v4 utilities and custom CSS design tokens declared in `client/src/App.css`.
 - **Theme & Dark Mode:** Dark studio aesthetic with deep charcoal backgrounds (`#0B0F17`, `#111827`), glassmorphic panels (`backdrop-blur-md`), and vibrant studio red/purple/blue accents.
 - **Transitions & Animations:** Driven by `framer-motion` for spring modal animations and smooth grid rearrangements.
+
+---
+
+## 4. Automated Testing Conventions
+
+- **File Naming & Colocation:** Unit and component tests are colocated alongside source files with `.test.ts` / `.test.tsx` extensions (e.g. `src/hooks/useMedia.test.ts`, `src/routes/auth.routes.test.ts`). Multi-entity integration suites live in `src/test/` (e.g. `server/src/test/socket.test.ts`).
+- **Mock Isolation:** External dependencies (Prisma ORM, Nodemailer, Cloudinary, Axios, WebRTC hardware) must be mocked using `vi.mock()` to ensure fast, deterministic offline execution.
+- **Test Isolation:** Always call `vi.clearAllMocks()` or `cleanup()` in `beforeEach()` / `afterEach()` hooks.
+- **Form & DOM Testing:** Test user actions using `@testing-library/user-event` and form submit events on `<form>` elements rather than relying on unbound click triggers.

@@ -2,7 +2,7 @@
 
 **Project:** PodStudio (Riverside alternative)  
 **Repository:** `Shivam000189/podstudio`  
-**Generated Date:** 2026-09-20  
+**Generated Date:** 2026-09-20 (Refreshed)  
 
 ---
 
@@ -57,7 +57,22 @@
 
 ---
 
-## 4. Database & Infrastructure
+## 4. Automated Testing Stack
+
+| Layer | Package | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Client Test Runner** | `vitest` | ^5.0.1 | High-performance ESM test runner for hooks and components |
+| **Client DOM Simulator** | `jsdom` | ^29.1.1 | Browser DOM simulation environment for React testing |
+| **React Component Testing** | `@testing-library/react` | ^16.3.3 | User-centric React component mounting and queries |
+| **User Event Simulation** | `@testing-library/user-event` | ^14.6.7 | Real browser keyboard, click, and input interactions |
+| **Jest DOM Matchers** | `@testing-library/jest-dom` | ^7.0.1 | Custom assertions for DOM nodes (`toBeInTheDocument`, etc.) |
+| **Server Test Runner** | `vitest` | ^5.0.1 | Fast TypeScript test runner for backend services and routes |
+| **Server HTTP Assertion** | `supertest` | ^7.2.2 | High-level HTTP abstractions for testing Express endpoints |
+| **Realtime Client Mock/Test**| `socket.io-client` | ^4.8.3 | Programmatic Socket.IO client connections in server tests |
+
+---
+
+## 5. Database & Infrastructure
 
 - **Primary Database:** PostgreSQL 16+ (Supported: Neon, Supabase, Railway, Render Postgres, Docker local).
 - **ORM Schema:** Single file `server/prisma/schema.prisma` with models: `User`, `Recording`, `Room`, `RoomOtp`.
