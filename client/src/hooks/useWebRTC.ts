@@ -21,7 +21,7 @@ export function useWebRTC(
 
   const isPolitePeer = useCallback((peerId: string) => {
     const myId = socket?.id || '';
-    return myId.localeCompare(peerId) > 0;
+    return myId > peerId;
   }, [socket]);
 
   const flushPendingIceCandidates = useCallback(async (peerId: string, pc: RTCPeerConnection) => {

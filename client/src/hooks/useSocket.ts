@@ -30,7 +30,6 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
         });
 
         sock.connect();
-        sock.emit('join-room', roomId);
 
         sock.on('disconnect', () => {
             console.log('Socket disconnected');
@@ -67,7 +66,7 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
 
         sock.on('user-joined', (socketId: string) => {
             console.log('User joined:', socketId);
-            setUsersInRoom((prev) => [...prev, socketId]);
+            setUsersInRoom((prev) => prev.includes(socketId) ? prev : [...prev, socketId]);
         });
 
         sock.on('user-left', (socketId: string) => {

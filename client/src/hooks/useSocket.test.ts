@@ -43,7 +43,6 @@ describe('useSocket Hook', () => {
 
     expect(socketService.createSocket).toHaveBeenCalledWith('valid-token');
     expect(mockSocket.connect).toHaveBeenCalled();
-    expect(mockSocket.emit).toHaveBeenCalledWith('join-room', 'room-123');
 
     // Simulate connect event
     act(() => {
@@ -51,6 +50,44 @@ describe('useSocket Hook', () => {
     });
 
     expect(result.current.isConnected).toBe(true);
+    expect(mockSocket.emit).toHaveBeenCalledWith('join-room', 'room-123');
+  });
+
+  it('should re-emit join-room on reconnection', () => {
+    renderHook(() => useSocket('room-123', 'valid-token'));
+
+    expect(mockSocket.emit).not.toHaveBeenCalled();
+
+    // First connect
+    act(() => {
+      eventHandlers['connect']?.();
+    });
+    expect(mockSocket.emit).toHaveBeenCalledTimes(1);
+    expect(mockSocket.emit).toHaveBeenCalledWith('join-room', 'room-123');
+
+    // Simulate reconnect
+    act(() => {
+      eventHandlers['connect']?.();
+    });
+    expect(mockSocket.emit).toHaveBeenCalledTimes(2);
+  });
+
+  it('should deduplicate user-joined events for the same socket ID', () => {
+    const { result } = renderHook(() => useSocket('room-123', 'valid-token'));
+
+    act(() => {
+      eventHandlers['connect']?.();
+      eventHandlers['user-joined']?.('peer-xyz');
+    });
+
+    expect(result.current.usersInRoom).toEqual(['peer-xyz']);
+
+    // Replay duplicate user-joined event
+    act(() => {
+      eventHandlers['user-joined']?.('peer-xyz');
+    });
+
+    expect(result.current.usersInRoom).toEqual(['peer-xyz']);
   });
 
   it('should update room users and isHost flag when room-users event arrives', () => {
