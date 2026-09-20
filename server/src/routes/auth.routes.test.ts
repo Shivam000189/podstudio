@@ -117,5 +117,27 @@ describe('Auth Routes (REST)', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data._id).toBe('user-123');
     });
+
+    it('regression: should reject raw user_ attacker token with 401', async () => {
+      const res = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', 'Bearer user_someoneElsesId');
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toContain('Unauthorized');
+    });
+
+    it('regression: should reject forged unsigned JWT with sub claim with 401', async () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+      const payload = Buffer.from(JSON.stringify({ sub: 'user_someoneElsesId' })).toString('base64url');
+      const forgedToken = `${header}.${payload}.unsignedGarbageSignature`;
+
+      const res = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${forgedToken}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toContain('Unauthorized');
+    });
   });
 });

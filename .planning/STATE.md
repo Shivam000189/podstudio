@@ -14,9 +14,9 @@
 | :--- | :--- |
 | **Active Milestone** | M1: Production Hardening & Scalability |
 | **Active Phase** | Phase 1: Automated Test Suites & Quality Gates |
-| **Current Step** | Codebase Map Refreshed -> Test Suites Active (67 tests passing) |
-| **Codebase Health** | Clean baseline; Vitest configured; all tests pass |
-| **Test Coverage** | 11 suites, 67 tests passing across client and server |
+| **Current Step** | Security Regression Tests & Disconnect Resilience Active (72 tests passing) |
+| **Codebase Health** | Clean baseline; Vitest configured; all tests pass; zero TS errors |
+| **Test Coverage** | 11 suites, 72 tests passing across client and server |
 
 ---
 

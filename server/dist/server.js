@@ -78,6 +78,10 @@ exports.app.get(['/health', '/api/health', '/api', '/'], (_req, res) => {
     });
 });
 exports.io = new socket_io_1.Server(exports.httpServer, {
+    connectionStateRecovery: {
+        maxDisconnectionDuration: 2 * 60 * 1000,
+        skipMiddlewares: true,
+    },
     cors: {
         origin: (origin, callback) => {
             if (isOriginAllowed(origin)) {

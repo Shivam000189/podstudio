@@ -53,6 +53,60 @@ describe('Socket.IO WebRTC Signaling & Room Engine', () => {
     unauthClient.disconnect();
   });
 
+  it('regression: should disconnect with auth-error if client attempts auth with raw user_ ID token', async () => {
+    mockPrisma.room.findUnique.mockResolvedValueOnce({
+      id: 'room-id-1',
+      code: roomCode,
+      createdBy: hostUserId,
+      endedAt: null,
+      participants: [hostUserId],
+    });
+
+    const exploitClient = Client(`http://localhost:${serverPort}`, {
+      transports: ['websocket'],
+      auth: { token: 'user_someoneElsesId' },
+    });
+
+    const errorPromise = new Promise<{ message: string }>((resolve) => {
+      exploitClient.on('auth-error', (err) => resolve(err));
+    });
+
+    exploitClient.emit('join-room', roomCode);
+
+    const error = await errorPromise;
+    expect(error.message).toContain('Invalid or expired token.');
+    exploitClient.disconnect();
+  });
+
+  it('regression: should disconnect with auth-error if client attempts auth with forged unsigned JWT', async () => {
+    mockPrisma.room.findUnique.mockResolvedValueOnce({
+      id: 'room-id-1',
+      code: roomCode,
+      createdBy: hostUserId,
+      endedAt: null,
+      participants: [hostUserId],
+    });
+
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ sub: 'user_someoneElsesId' })).toString('base64url');
+    const forgedToken = `${header}.${payload}.unsignedGarbageSignature`;
+
+    const exploitClient = Client(`http://localhost:${serverPort}`, {
+      transports: ['websocket'],
+      auth: { token: forgedToken },
+    });
+
+    const errorPromise = new Promise<{ message: string }>((resolve) => {
+      exploitClient.on('auth-error', (err) => resolve(err));
+    });
+
+    exploitClient.emit('join-room', roomCode);
+
+    const error = await errorPromise;
+    expect(error.message).toContain('Invalid or expired token.');
+    exploitClient.disconnect();
+  });
+
   it('should allow host to join room and receive isHost: true', async () => {
     mockPrisma.room.findUnique.mockResolvedValueOnce({
       id: 'room-id-1',

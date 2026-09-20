@@ -21,14 +21,16 @@ export function useSocket(roomId: string | undefined, token?: string | null) {
         socketRef.current = sock;
         setSocketInstance(sock);
 
-        sock.connect();
-        sock.emit('join-room', roomId);
-
         sock.on('connect', () => {
             console.log('Socket connected:', sock.id);
             setIsConnected(true);
             setAuthError(null);
+            // Ensure room membership is established/restored on connect and reconnect
+            sock.emit('join-room', roomId);
         });
+
+        sock.connect();
+        sock.emit('join-room', roomId);
 
         sock.on('disconnect', () => {
             console.log('Socket disconnected');

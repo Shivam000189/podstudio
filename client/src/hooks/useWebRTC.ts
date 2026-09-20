@@ -17,6 +17,7 @@ export function useWebRTC(
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const pendingOffers = useRef<Map<string, RTCSessionDescriptionInit>>(new Map());
   const pendingIceCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const disconnectTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const isPolitePeer = useCallback((peerId: string) => {
     const myId = socket?.id || '';
@@ -45,6 +46,12 @@ export function useWebRTC(
   }, []);
 
   const createPeerConnection = useCallback((peerId: string) => {
+    const existingTimer = disconnectTimers.current.get(peerId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      disconnectTimers.current.delete(peerId);
+    }
+
     if (peerConnections.current.has(peerId)) {
       peerConnections.current.get(peerId)?.close();
       peerConnections.current.delete(peerId);
@@ -103,7 +110,57 @@ export function useWebRTC(
 
     pc.onconnectionstatechange = () => {
       console.log(`Connection state with ${peerId}:`, pc.connectionState);
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+
+      if (pc.connectionState === 'connected') {
+        const pendingTimer = disconnectTimers.current.get(peerId);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          disconnectTimers.current.delete(peerId);
+          console.log(`Connection recovered for ${peerId}`);
+        }
+      } else if (pc.connectionState === 'disconnected') {
+        // Transient state: ICE attempts self-healing. Give a 5s grace period before removing stream.
+        if (!disconnectTimers.current.has(peerId)) {
+          const timer = setTimeout(() => {
+            disconnectTimers.current.delete(peerId);
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+              setRemoteStreams((prev) => {
+                if (!prev.has(peerId)) return prev;
+                const next = new Map(prev);
+                next.delete(peerId);
+                return next;
+              });
+            }
+          }, 5000);
+          disconnectTimers.current.set(peerId, timer);
+        }
+      } else if (pc.connectionState === 'failed') {
+        const pendingTimer = disconnectTimers.current.get(peerId);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          disconnectTimers.current.delete(peerId);
+        }
+        if (!isPolitePeer(peerId) && typeof pc.restartIce === 'function') {
+          console.log(`Attempting ICE restart for failed connection with ${peerId}`);
+          try {
+            pc.restartIce();
+          } catch (err) {
+            console.error(`ICE restart failed for ${peerId}:`, err);
+          }
+        } else {
+          setRemoteStreams((prev) => {
+            if (!prev.has(peerId)) return prev;
+            const next = new Map(prev);
+            next.delete(peerId);
+            return next;
+          });
+        }
+      } else if (pc.connectionState === 'closed') {
+        const pendingTimer = disconnectTimers.current.get(peerId);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          disconnectTimers.current.delete(peerId);
+        }
         setRemoteStreams((prev) => {
           if (!prev.has(peerId)) return prev;
           const next = new Map(prev);
@@ -115,7 +172,7 @@ export function useWebRTC(
 
     peerConnections.current.set(peerId, pc);
     return pc;
-  }, [roomId, socket, localStream]);
+  }, [roomId, socket, localStream, isPolitePeer]);
 
   const processOffer = useCallback(async (peerId: string, sdp: RTCSessionDescriptionInit) => {
     if (!localStream || !socket) return;
@@ -213,6 +270,11 @@ export function useWebRTC(
 
     const handleUserLeft = (peerId: string) => {
       console.log(`Peer left: ${peerId}`);
+      const pendingTimer = disconnectTimers.current.get(peerId);
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        disconnectTimers.current.delete(peerId);
+      }
       if (peerConnections.current.has(peerId)) {
         peerConnections.current.get(peerId)?.close();
         peerConnections.current.delete(peerId);
@@ -279,6 +341,8 @@ export function useWebRTC(
   }, [localStream, roomId, socket, usersInRoom, createPeerConnection, isPolitePeer]);
 
   const closeConnection = useCallback(() => {
+    disconnectTimers.current.forEach((t) => clearTimeout(t));
+    disconnectTimers.current.clear();
     peerConnections.current.forEach((pc) => pc.close());
     peerConnections.current.clear();
     pendingOffers.current.clear();

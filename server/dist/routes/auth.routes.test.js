@@ -136,5 +136,22 @@ const jwt_1 = require("../utils/jwt");
             (0, vitest_1.expect)(res.body.success).toBe(true);
             (0, vitest_1.expect)(res.body.data._id).toBe('user-123');
         });
+        (0, vitest_1.it)('regression: should reject raw user_ attacker token with 401', async () => {
+            const res = await (0, supertest_1.default)(server_1.app)
+                .get('/api/auth/me')
+                .set('Authorization', 'Bearer user_someoneElsesId');
+            (0, vitest_1.expect)(res.status).toBe(401);
+            (0, vitest_1.expect)(res.body.message).toContain('Unauthorized');
+        });
+        (0, vitest_1.it)('regression: should reject forged unsigned JWT with sub claim with 401', async () => {
+            const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+            const payload = Buffer.from(JSON.stringify({ sub: 'user_someoneElsesId' })).toString('base64url');
+            const forgedToken = `${header}.${payload}.unsignedGarbageSignature`;
+            const res = await (0, supertest_1.default)(server_1.app)
+                .get('/api/auth/me')
+                .set('Authorization', `Bearer ${forgedToken}`);
+            (0, vitest_1.expect)(res.status).toBe(401);
+            (0, vitest_1.expect)(res.body.message).toContain('Unauthorized');
+        });
     });
 });

@@ -81,7 +81,7 @@ export const deleteRecording = async (req: AuthRequest, res: Response) => {
     }
 
     // Use stored publicId, with fallback to parsing URL for legacy records
-    let publicId = (recording as any).publicId;
+    let publicId = recording.publicId;
     if (!publicId && recording.videoUrl) {
       const urlParts = recording.videoUrl.split('/');
       const filenameWithExt = urlParts[urlParts.length - 1];

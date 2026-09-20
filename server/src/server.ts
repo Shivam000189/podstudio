@@ -85,6 +85,10 @@ app.get(['/health', '/api/health', '/api', '/'], (_req: Request, res: Response) 
 });
 
 export const io = new Server(httpServer, {
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true,
+  },
   cors: {
     origin: (origin, callback) => {
       if (isOriginAllowed(origin)) {

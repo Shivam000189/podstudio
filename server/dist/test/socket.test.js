@@ -46,6 +46,49 @@ const guestToken_1 = require("../utils/guestToken");
         (0, vitest_1.expect)(error.message).toContain('Authentication required');
         unauthClient.disconnect();
     });
+    (0, vitest_1.it)('regression: should disconnect with auth-error if client attempts auth with raw user_ ID token', async () => {
+        prismaMock_1.mockPrisma.room.findUnique.mockResolvedValueOnce({
+            id: 'room-id-1',
+            code: roomCode,
+            createdBy: hostUserId,
+            endedAt: null,
+            participants: [hostUserId],
+        });
+        const exploitClient = (0, socket_io_client_1.io)(`http://localhost:${serverPort}`, {
+            transports: ['websocket'],
+            auth: { token: 'user_someoneElsesId' },
+        });
+        const errorPromise = new Promise((resolve) => {
+            exploitClient.on('auth-error', (err) => resolve(err));
+        });
+        exploitClient.emit('join-room', roomCode);
+        const error = await errorPromise;
+        (0, vitest_1.expect)(error.message).toContain('Invalid or expired token.');
+        exploitClient.disconnect();
+    });
+    (0, vitest_1.it)('regression: should disconnect with auth-error if client attempts auth with forged unsigned JWT', async () => {
+        prismaMock_1.mockPrisma.room.findUnique.mockResolvedValueOnce({
+            id: 'room-id-1',
+            code: roomCode,
+            createdBy: hostUserId,
+            endedAt: null,
+            participants: [hostUserId],
+        });
+        const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+        const payload = Buffer.from(JSON.stringify({ sub: 'user_someoneElsesId' })).toString('base64url');
+        const forgedToken = `${header}.${payload}.unsignedGarbageSignature`;
+        const exploitClient = (0, socket_io_client_1.io)(`http://localhost:${serverPort}`, {
+            transports: ['websocket'],
+            auth: { token: forgedToken },
+        });
+        const errorPromise = new Promise((resolve) => {
+            exploitClient.on('auth-error', (err) => resolve(err));
+        });
+        exploitClient.emit('join-room', roomCode);
+        const error = await errorPromise;
+        (0, vitest_1.expect)(error.message).toContain('Invalid or expired token.');
+        exploitClient.disconnect();
+    });
     (0, vitest_1.it)('should allow host to join room and receive isHost: true', async () => {
         prismaMock_1.mockPrisma.room.findUnique.mockResolvedValueOnce({
             id: 'room-id-1',
