@@ -74,6 +74,11 @@ High-definition live stage with targeted multi-peer video feeds, dynamic grid la
 - **ICE Candidate Queuing**: Early candidate arrivals before `setRemoteDescription` are buffered and automatically flushed, avoiding dropped connections.
 - **Dynamic Peer Maps**: Tracks `RTCPeerConnection` instances per participant with isolated state updates.
 
+### 💬 In-Call Live Chat
+- **Ephemeral Room Chat**: Hosts and guests chat in real time over the existing Socket.IO connection — no extra auth path, no database persistence.
+- **Server-Side Rate Limiting**: Per-socket 300ms throttle with 2000-character message cap prevents spam and payload abuse.
+- **Client-Side Send Cooldown**: Input disables for 320ms after each send, matching the server window so messages never silently drop.
+
 ### ✉️ Passwordless Guest Join (Email OTP)
 - **Zero-Account Access**: Guests enter the room code, receive a time-limited 6-digit cryptographic OTP via email, and join the session directly without registration.
 - **Scoped Permissions**: Guests enjoy full video/audio interaction while studio recording controls and cloud uploads remain securely host-gated.

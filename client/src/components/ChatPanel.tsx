@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { ChatMessage } from "../hooks/useChat";
 
+const SEND_COOLDOWN_MS = 320; // slightly above server's 300ms throttle to avoid edge-case races
+
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (text: string) => void;
@@ -10,6 +12,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({ messages, onSend, onClose }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
+  const [isCoolingDown, setIsCoolingDown] = useState(false);
   const listEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -18,9 +21,12 @@ export function ChatPanel({ messages, onSend, onClose }: ChatPanelProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft.trim()) return;
+    if (!draft.trim() || isCoolingDown) return;
+
     onSend(draft);
     setDraft("");
+    setIsCoolingDown(true);
+    setTimeout(() => setIsCoolingDown(false), SEND_COOLDOWN_MS);
   };
 
   return (
@@ -64,8 +70,9 @@ export function ChatPanel({ messages, onSend, onClose }: ChatPanelProps) {
           placeholder="Type a message..."
           maxLength={2000}
           className="chat-panel-input"
+          disabled={isCoolingDown}
         />
-        <button type="submit" className="chat-panel-send" disabled={!draft.trim()}>
+        <button type="submit" className="chat-panel-send" disabled={!draft.trim() || isCoolingDown}>
           Send
         </button>
       </form>
