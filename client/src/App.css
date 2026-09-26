@@ -274,7 +274,8 @@ button:disabled {
 .studio-shell {
   position: relative;
   width: 100vw;
-  height: 100vh;
+  height: 100vh; /* fallback for browsers without dvh support */
+  height: 100dvh;
   background-color: var(--color-canvas);
   overflow: hidden;
   display: flex;
@@ -3667,6 +3668,24 @@ button:disabled {
     flex-wrap: wrap;
     justify-content: center;
   }
+
+  /* Chat panel: full-width bottom sheet leaving dock accessible */
+  .chat-panel {
+    width: 100%;
+    top: 56px;
+    bottom: 76px;
+    height: auto;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* PIP thumbnail: scale down for smaller screens */
+  .stage-grid.layout-pip .local-stream-card {
+    width: clamp(120px, 32vw, 200px);
+    height: clamp(75px, 20vw, 125px);
+    bottom: 12px;
+    right: 12px;
+  }
 }
 
 /* ─── Guest Join Modal ─────────────────────────────────────────────── */
@@ -3977,6 +3996,18 @@ button:disabled {
   .guest-otp-group {
     gap: 6px;
   }
+
+  /* Toast container: prevent overflow on narrow phones */
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+
+  /* Quality chip: hide decorative info to save header space */
+  .quality-chip {
+    display: none;
+  }
 }
 
 /* ==========================================================================
@@ -4142,9 +4173,3 @@ button:disabled {
   pointer-events: none;
 }
 
-/* Chat panel responsive */
-@media (max-width: 480px) {
-  .chat-panel {
-    width: 100vw;
-  }
-}
