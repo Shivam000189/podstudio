@@ -105,6 +105,7 @@ const roomUsers = new Map<string, Set<string>>();
 const roomHosts = new Map<string, string>();
 const roomTerminationTimers = new Map<string, NodeJS.Timeout>();
 const HOST_DISCONNECT_GRACE_MS = 15000;
+const chatLastSent = new Map<string, number>();
 
 export const terminateRoomSession = async (roomId: string, reason: string) => {
   const pendingTimer = roomTerminationTimers.get(roomId);
@@ -275,6 +276,29 @@ io.on('connection', (socket) => {
     }
   });
 
+  // --- In-call chat: simple per-socket rate-limited relay ---
+  socket.on('chat-message', (payload: { roomId: string; text: string; senderName?: string }) => {
+    if (!payload?.roomId || typeof payload.text !== 'string') return;
+
+    const text = payload.text.trim();
+    if (!text || text.length > 2000) return;
+
+    const now = Date.now();
+    const last = chatLastSent.get(socket.id) || 0;
+    if (now - last < 300) return; // 300ms throttle per socket
+    chatLastSent.set(socket.id, now);
+
+    const message = {
+      id: `${socket.id}-${now}`,
+      from: socket.id,
+      senderName: (payload.senderName || 'Guest').slice(0, 60),
+      text,
+      timestamp: new Date().toISOString(),
+    };
+
+    socket.to(payload.roomId).emit('chat-message', message);
+  });
+
   socket.on('disconnect', async () => {
     console.log('Client disconnected:', socket.id);
 
@@ -307,6 +331,8 @@ io.on('connection', (socket) => {
         }
       }
     });
+
+    chatLastSent.delete(socket.id);
   });
 });
 

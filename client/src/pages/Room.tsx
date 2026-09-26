@@ -7,8 +7,10 @@ import { useMedia } from "../hooks/useMedia";
 import { useSocket } from "../hooks/useSocket";
 import { useWebRTC } from "../hooks/useWebRTC";
 import { useRecording } from "../hooks/useRecording";
+import { useChat } from "../hooks/useChat";
 import { useAuth } from "../hooks/useAuth";
 import { VideoPlayer } from "../components/VideoPlayer";
+import { ChatPanel } from "../components/ChatPanel";
 import { uploadRecording } from "../api/recording";
 import "../App.css";
 
@@ -49,6 +51,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
     const [copied, setCopied] = useState(false);
     const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
     const [showSettings, setShowSettings] = useState(false);
+    const [showChat, setShowChat] = useState(false);
     const [selectedResolution, setSelectedResolution] = useState("1080p");
     const [socketToken, setSocketToken] = useState<string | null>(null);
     const [authTokenError, setAuthTokenError] = useState(false);
@@ -132,6 +135,15 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         stopAndGetBlob,
         resetRecording
     } = useRecording(stream, remoteMediaStreams);
+
+    // Compute display name early so useChat can reference it
+    const myName = effectiveIsHost
+        ? (user?.name || "Host")
+        : isGuest
+        ? "Guest"
+        : (user?.name || "Participant");
+
+    const { messages, sendMessage, unreadCount, clearUnread } = useChat(socket, id, myName);
 
     // If room has ended, clean up local media streams
     useEffect(() => {
@@ -407,11 +419,7 @@ export function Rooms({ isGuest = false }: RoomsProps) {
         );
     }
 
-    const hostName = effectiveIsHost 
-        ? (user?.name || "Host") 
-        : isGuest 
-        ? "Guest" 
-        : (user?.name || "Participant");
+    const hostName = myName;
     const hostInitial = hostName.charAt(0).toUpperCase();
 
     const localLabel = effectiveIsHost
@@ -677,6 +685,25 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                     </svg>
                 </button>
 
+                {/* In-Call Chat Toggle */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setShowChat((s) => !s);
+                        if (!showChat) clearUnread();
+                    }}
+                    className="dock-btn"
+                    title="Toggle Chat"
+                    style={{ position: "relative" }}
+                >
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    {unreadCount > 0 && !showChat && (
+                        <span className="chat-unread-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                    )}
+                </button>
+
                 {/* Leave Studio */}
                 <button 
                     type="button"
@@ -736,6 +763,17 @@ export function Rooms({ isGuest = false }: RoomsProps) {
                             <span>Start New Take</span>
                         </button>
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* In-Call Chat Panel */}
+            <AnimatePresence>
+                {showChat && (
+                    <ChatPanel
+                        messages={messages}
+                        onSend={sendMessage}
+                        onClose={() => setShowChat(false)}
+                    />
                 )}
             </AnimatePresence>
 
